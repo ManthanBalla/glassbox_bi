@@ -1,0 +1,310 @@
+/* ==========================================================================
+   GlassBox-BI Authentication Screens (Login, Register, Forgot/Reset Password)
+   Aesthetic: Enterprise Business Analytics Split Screen
+   ========================================================================== */
+
+.auth-page {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background-color: var(--color-bg-base);
+}
+
+/* Left Hero / Brand Banner */
+.auth-hero {
+  flex: 1.1;
+  background: linear-gradient(145deg, #0f172a 0%, #1a2332 50%, #172554 100%);
+  color: var(--color-text-inverse);
+  padding: var(--space-12) var(--space-10);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Subtle grid line pattern overlay */
+.auth-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+.auth-hero-header {
+  position: relative;
+  z-index: 2;
+}
+
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: rgba(13, 148, 136, 0.2);
+  border: 1px solid rgba(13, 148, 136, 0.4);
+  color: #2dd4bf;
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-4);
+}
+
+.auth-hero-title {
+  color: #ffffff;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.15;
+  margin-bottom: var(--space-4);
+  letter-spacing: -0.03em;
+}
+
+.auth-hero-title span {
+  background: linear-gradient(135deg, #2dd4bf 0%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.auth-hero-subtitle {
+  color: #94a3b8;
+  font-size: var(--font-size-base);
+  max-width: 480px;
+  line-height: 1.6;
+}
+
+/* Metrics and Feature Highlights in Hero */
+.auth-hero-features {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: var(--space-8) 0;
+}
+
+.feature-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  transition: transform var(--transition-base), border-color var(--transition-base);
+}
+
+.feature-pill:hover {
+  transform: translateX(4px);
+  border-color: rgba(13, 148, 136, 0.4);
+}
+
+.feature-icon-box {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: rgba(13, 148, 136, 0.2);
+  color: #2dd4bf;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.feature-info h4 {
+  color: #f1f5f9;
+  font-size: var(--font-size-sm);
+  margin-bottom: 2px;
+}
+
+.feature-info p {
+  color: #94a3b8;
+  font-size: var(--font-size-xs);
+}
+
+.auth-hero-footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-xs);
+  color: #64748b;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: var(--space-4);
+}
+
+/* Right Content / Form Container */
+.auth-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-6);
+  background-color: var(--color-bg-base);
+}
+
+.auth-card {
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8) var(--space-10);
+  width: 100%;
+  max-width: 480px;
+  box-shadow: var(--shadow-lg);
+}
+
+.auth-card-header {
+  margin-bottom: var(--space-6);
+  text-align: left;
+}
+
+.auth-card-header .logo-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-dark);
+  margin-bottom: var(--space-3);
+  text-decoration: none;
+}
+
+.auth-card-header h2 {
+  font-size: var(--font-size-xl);
+  color: var(--color-primary-dark);
+  margin-bottom: var(--space-1);
+}
+
+.auth-card-header p {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Form Extras */
+.form-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+  font-size: var(--font-size-xs);
+}
+
+.form-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.form-footer {
+  margin-top: var(--space-6);
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* Password Rules Checklist */
+.password-requirements {
+  background-color: var(--color-bg-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-4);
+  font-size: var(--font-size-xs);
+}
+
+.password-requirements-title {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
+.rule-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-subtle);
+  margin-bottom: var(--space-1);
+  transition: color var(--transition-fast);
+}
+
+.rule-item.valid {
+  color: var(--color-success);
+  font-weight: var(--font-weight-medium);
+}
+
+.rule-item .rule-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Google OAuth Button */
+.btn-google-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+}
+
+/* Responsive Media Queries */
+@media (max-width: 1023px) {
+  .auth-page {
+    flex-direction: column;
+  }
+
+  .auth-hero {
+    flex: none;
+    padding: var(--space-8) var(--space-6);
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .auth-hero-features,
+  .auth-hero-footer {
+    display: none;
+  }
+
+  .auth-hero-title {
+    font-size: var(--font-size-2xl);
+  }
+
+  .auth-main {
+    padding: var(--space-6) var(--space-4);
+  }
+
+  .auth-card {
+    padding: var(--space-6);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+@media (max-width: 767px) {
+  .auth-card {
+    padding: var(--space-5) var(--space-4);
+    border: none;
+    box-shadow: none;
+    background-color: transparent;
+  }
+
+  .auth-hero {
+    padding: var(--space-6) var(--space-4);
+  }
+}

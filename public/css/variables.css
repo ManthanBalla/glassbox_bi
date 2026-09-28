@@ -1,0 +1,107 @@
+/* ==========================================================================
+   GlassBox-BI Enterprise Design Tokens
+   Aesthetic: Tableau / Power BI Enterprise Business Analytics
+   ========================================================================== */
+
+:root {
+  /* Brand Core Palette */
+  --color-primary: #1a2332;         /* Deep Navy Primary */
+  --color-primary-dark: #0f172a;    /* Midnight Navy */
+  --color-primary-light: #243044;   /* Slate Indigo */
+  --color-primary-subtle: #2d3d56;  /* Soft Slate Border */
+
+  /* Accent & CTAs */
+  --color-accent: #0d9488;          /* Enterprise Teal */
+  --color-accent-hover: #0f766e;    /* Deep Teal */
+  --color-accent-light: #ccfbf1;    /* Light Teal Glow */
+  --color-accent-focus: rgba(13, 148, 136, 0.25);
+
+  /* Secondary Accents */
+  --color-secondary-accent: #0ea5e9; /* Sky Blue */
+  --color-amber: #d97706;           /* Amber Warning/Highlight */
+  --color-amber-light: #fef3c7;
+
+  /* Surfaces & Backgrounds */
+  --color-bg-base: #f8fafc;         /* Crisp Canvas Light Gray */
+  --color-bg-surface: #ffffff;      /* Pure White Surface */
+  --color-bg-muted: #f1f5f9;        /* Subtle Container BG */
+  --color-bg-hover: #e2e8f0;        /* Subtle Item Hover */
+
+  /* Typography / Text Colors */
+  --color-text-main: #0f172a;       /* Deep Charcoal for high contrast */
+  --color-text-muted: #64748b;      /* Slate Secondary Text */
+  --color-text-subtle: #94a3b8;     /* Inactive/Placeholder */
+  --color-text-inverse: #ffffff;    /* Pure White */
+
+  /* Semantic Feedback */
+  --color-success: #10b981;
+  --color-success-bg: #ecfdf5;
+  --color-success-border: #a7f3d0;
+  
+  --color-error: #ef4444;
+  --color-error-bg: #fef2f2;
+  --color-error-border: #fecaca;
+
+  --color-warning: #f59e0b;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+
+  --color-info: #3b82f6;
+  --color-info-bg: #eff6ff;
+  --color-info-border: #bfdbfe;
+
+  /* Borders & Dividers */
+  --border-color: #e2e8f0;
+  --border-color-dark: #cbd5e1;
+
+  /* Typography Scale */
+  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 1rem;     /* 16px */
+  --font-size-md: 1.125rem;   /* 18px */
+  --font-size-lg: 1.25rem;    /* 20px */
+  --font-size-xl: 1.5rem;     /* 24px */
+  --font-size-2xl: 1.875rem;  /* 30px */
+  --font-size-3xl: 2.25rem;   /* 36px */
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Spacing Scale (Relative Units) */
+  --space-1: 0.25rem;  /* 4px */
+  --space-2: 0.5rem;   /* 8px */
+  --space-3: 0.75rem;  /* 12px */
+  --space-4: 1rem;     /* 16px */
+  --space-5: 1.25rem;  /* 20px */
+  --space-6: 1.5rem;   /* 24px */
+  --space-8: 2rem;     /* 32px */
+  --space-10: 2.5rem;  /* 40px */
+  --space-12: 3rem;    /* 48px */
+
+  /* Border Radii */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* Elevation Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Layout Max Widths */
+  --layout-max-width: 1560px;
+  --navbar-height: 4.25rem; /* ~68px */
+}
