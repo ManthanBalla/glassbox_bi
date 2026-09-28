@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forecasting Agent | GlassBox-BI — Enterprise Analytics</title>
+  <meta name="description" content="GlassBox-BI Forecasting Agent. Automated multi-model time-series forecasting with explainable AutoML and prediction intervals.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/global.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="/css/forecasting.css">
+
+  <!-- Chart.js for multi-series forecasting visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="dashboard-body">
+
+  <!-- Top Enterprise Navbar -->
+  <header class="navbar">
+    <div class="navbar-container">
+      <div class="navbar-left">
+        <a href="/dashboard.html" class="navbar-brand" style="text-decoration: none;">
+          <div class="brand-logo">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+          </div>
+          <span class="brand-text">GlassBox<span class="brand-accent">-BI</span></span>
+        </a>
+        <div class="navbar-divider"></div>
+        <nav class="nav-links">
+          <a href="/dashboard.html" class="nav-link">&larr; Back to Dashboard</a>
+          <span class="nav-link active" style="font-weight: 600; color: var(--color-primary);">Forecasting Agent</span>
+        </nav>
+      </div>
+
+      <div class="navbar-right">
+        <!-- User Profile Dropdown -->
+        <div class="profile-menu-container">
+          <button class="profile-button" id="profile-menu-button" aria-haspopup="true" aria-expanded="false">
+            <div class="avatar-circle" id="user-avatar-circle">U</div>
+            <span class="profile-name" id="user-profile-name">Analyst</span>
+            <svg class="profile-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+
+          <div class="profile-dropdown" id="profile-dropdown">
+            <div class="dropdown-user-info">
+              <div class="dropdown-user-name" id="dropdown-full-name">Enterprise User</div>
+              <div class="dropdown-user-email" id="dropdown-email">user@glassbox-bi.ai</div>
+            </div>
+            <button class="dropdown-item" id="btn-logout">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="forecasting-container">
+
+    <!-- Page Header -->
+    <div class="agent-header">
+      <div class="agent-header-left">
+        <div class="agent-icon-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+        </div>
+        <div class="agent-title-block">
+          <h1>
+            <span>Forecasting Agent</span>
+            <span class="badge badge-teal" style="font-size: 0.72rem; vertical-align: middle;">Multi-Model AutoML Pipeline</span>
+          </h1>
+          <p>Trains a portfolio of 6 statistical and machine learning forecasting models, evaluates holdout accuracy, refits the winner, and generates prediction intervals.</p>
+        </div>
+      </div>
+      <div>
+        <a href="/agents/preprocessing.html" class="btn-secondary-agent">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></svg>
+          Preprocess Datasets
+        </a>
+      </div>
+    </div>
+
+    <!-- What Does This Agent Do? Banner -->
+    <div class="agent-help-banner">
+      <div>
+        <strong>What does this agent do?</strong>
+        <p>This agent takes a cleaned time-series dataset from the Preprocessing Agent, evaluates candidate models on a strictly chronological holdout, selects the winning model objectively, refits on all data, and generates future forecasts with 80% and 95% prediction intervals. Every step is explainable.</p>
+      </div>
+    </div>
+
+    <!-- Global Alert Banner -->
+    <div id="agent-alert-banner" class="alert alert-error" style="display: none; margin-bottom: 20px;"></div>
+
+    <!-- 4-Step Stepper Navigation -->
+    <nav class="stepper-nav" aria-label="Forecasting Workflow">
+      <div class="stepper-step active" id="stepper-step-1">
+        <div class="stepper-circle">1</div>
+        <div class="stepper-label">
+          <span class="stepper-label-num">Step 1</span>
+          <span class="stepper-label-title">Select Cleaned Data</span>
+        </div>
+      </div>
+      <div class="stepper-step" id="stepper-step-2">
+        <div class="stepper-circle">2</div>
+        <div class="stepper-label">
+          <span class="stepper-label-num">Step 2</span>
+          <span class="stepper-label-title">Pre-Check & Eligibility</span>
+        </div>
+      </div>
+      <div class="stepper-step" id="stepper-step-3">
+        <div class="stepper-circle">3</div>
+        <div class="stepper-label">
+          <span class="stepper-label-num">Step 3</span>
+          <span class="stepper-label-title">Configure Forecast</span>
+        </div>
+      </div>
+      <div class="stepper-step" id="stepper-step-4">
+        <div class="stepper-circle">4</div>
+        <div class="stepper-label">
+          <span class="stepper-label-num">Step 4</span>
+          <span class="stepper-label-title">Results & Leaderboard</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- STEP 1: SELECT PROCESSED DATASET -->
+    <section class="step-panel active" id="panel-step-1">
+      <div class="step-panel-header">
+        <div>
+          <h2>1. Select a Preprocessed Time-Series Dataset</h2>
+          <p>Choose an aligned, gap-free dataset produced by the Data Preprocessing Agent.</p>
+        </div>
+      </div>
+
+      <div id="dataset-loading-spinner" style="text-align: center; padding: 40px;">
+        <div class="spinner-agent"></div>
+        <p style="color: var(--color-text-muted); font-size: 0.9rem;">Loading preprocessed datasets...</p>
+      </div>
+
+      <div id="dataset-empty-state" style="display: none; padding: 40px 20px; text-align: center; border: 1px dashed var(--border-color); border-radius: var(--radius-md); background: var(--color-bg-base);">
+        <p style="color: var(--color-text-muted); margin-bottom: 16px;">No preprocessed datasets found in your account.</p>
+        <a href="/agents/preprocessing.html" class="btn-primary-agent">Run Preprocessing Agent First</a>
+      </div>
+
+      <div id="datasets-table-container" style="display: none;">
+        <div class="table-responsive-wrapper">
+          <table class="table-custom" id="datasets-selection-table">
+            <thead>
+              <tr>
+                <th style="width: 40px;"></th>
+                <th>Dataset Source</th>
+                <th>Target Column</th>
+                <th>Date Column</th>
+                <th>Frequency</th>
+                <th>Cleaned Rows</th>
+                <th>Readiness</th>
+                <th>Processed Date</th>
+              </tr>
+            </thead>
+            <tbody id="datasets-tbody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="step-actions">
+          <div></div>
+          <button class="btn-primary-agent" id="btn-to-step-2" disabled>
+            Inspect & Pre-Check Dataset &rarr;
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 2: PRE-CHECK & MODEL ELIGIBILITY -->
+    <section class="step-panel" id="panel-step-2">
+      <div class="step-panel-header">
+        <div>
+          <h2>2. Time-Series Pre-Check & Model Eligibility</h2>
+          <p>Automated validation of observations, seasonality cycles, and model eligibility determinations.</p>
+        </div>
+        <div id="precheck-badge-wrap"></div>
+      </div>
+
+      <!-- Metrics Summary Cards -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-card-label">Observations</span>
+          <span class="metric-card-value" id="chk-rows">-</span>
+          <span class="metric-card-sub">Time Points</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-card-label">Frequency</span>
+          <span class="metric-card-value" id="chk-freq" style="font-size: 1.3rem;">-</span>
+          <span class="metric-card-sub" id="chk-freq-sub">Calendar Interval</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-card-label">Seasonal Period (m)</span>
+          <span class="metric-card-value" id="chk-period">-</span>
+          <span class="metric-card-sub">Cycles Inferred</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-card-label">Target Column</span>
+          <span class="metric-card-value" id="chk-target" style="font-size: 1.25rem;">-</span>
+          <span class="metric-card-sub">Metric to Forecast</span>
+        </div>
+      </div>
+
+      <!-- Model Eligibility Cards -->
+      <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--color-primary); margin: 24px 0 12px 0;">Model Eligibility Portfolio Check</h3>
+      <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 16px;">Each model's mathematical assumptions are evaluated against your data length and seasonality cycles.</p>
+
+      <div class="eligibility-grid" id="eligibility-container">
+        <!-- Populated dynamically -->
+      </div>
+
+      <div class="step-actions">
+        <button class="btn-secondary-agent" id="btn-back-to-step-1">&larr; Back to Selection</button>
+        <button class="btn-primary-agent" id="btn-to-step-3">Configure Forecast Parameters &rarr;</button>
+      </div>
+    </section>
+
+    <!-- STEP 3: CONFIGURE FORECAST -->
+    <section class="step-panel" id="panel-step-3">
+      <div class="step-panel-header">
+        <div>
+          <h2>3. Configure Forecasting Parameters</h2>
+          <p>Select future forecast horizon, candidate models, ranking metric, and prediction bounds.</p>
+        </div>
+      </div>
+
+      <form id="forecasting-config-form">
+        <!-- Form Grid: 4 cols on desktop, 2 on laptop/tablet, 1 on mobile -->
+        <div class="config-grid">
+          <!-- Horizon -->
+          <div class="form-group-custom">
+            <label for="cfg-horizon">Forecast Horizon</label>
+            <input type="number" id="cfg-horizon" min="1" max="180" value="12" required>
+            <span class="field-tooltip">Number of future steps to forecast. Maximum 50% of history length.</span>
+          </div>
+
+          <!-- Ranking Metric -->
+          <div class="form-group-custom">
+            <label for="cfg-metric">Ranking Metric</label>
+            <select id="cfg-metric">
+              <option value="rmse" selected>RMSE (recommended)</option>
+              <option value="mae">MAE</option>
+              <option value="smape">sMAPE</option>
+            </select>
+            <span class="field-tooltip">Metric used to rank holdout validation accuracy and determine winner.</span>
+          </div>
+
+          <!-- Holdout Size -->
+          <div class="form-group-custom">
+            <label for="cfg-holdout">Holdout Size (%)</label>
+            <select id="cfg-holdout">
+              <option value="0.20" selected>20% (recommended)</option>
+              <option value="0.15">15%</option>
+              <option value="0.25">25%</option>
+              <option value="0.30">30%</option>
+            </select>
+            <span class="field-tooltip">Portion of recent history held out chronologically to evaluate models.</span>
+          </div>
+
+          <!-- Confidence Intervals -->
+          <div class="form-group-custom">
+            <label for="cfg-confidence">Prediction Bounds</label>
+            <select id="cfg-confidence">
+              <option value="both" selected>80% & 95% (recommended)</option>
+              <option value="95">95% only</option>
+              <option value="80">80% only</option>
+            </select>
+            <span class="field-tooltip">Upper and lower prediction bounds reflecting forecast uncertainty.</span>
+          </div>
+        </div>
+
+        <!-- Model Selection Checklist -->
+        <h3 style="font-size: 1rem; font-weight: 700; color: var(--color-primary); margin: 20px 0 10px 0;">Model Portfolio Selection</h3>
+        <p style="font-size: 0.84rem; color: var(--color-text-muted); margin-bottom: 14px;">Eligible models are pre-checked. Ineligible models are locked with documented reasons.</p>
+
+        <div class="model-checklist-container" id="model-checklist-box">
+          <!-- Populated dynamically -->
+        </div>
+
+        <div class="step-actions">
+          <button type="button" class="btn-secondary-agent" id="btn-back-to-step-2">&larr; Back to Pre-Check</button>
+          <button type="submit" class="btn-primary-agent" id="btn-run-agent">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            Run Forecasting Agent
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- STEP 4: RESULTS & LEADERBOARD -->
+    <section class="step-panel" id="panel-step-4">
+      <!-- Running State Spinner Card -->
+      <div id="forecast-running-card" class="running-card" style="display: none;">
+        <div class="spinner-agent"></div>
+        <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--color-primary); margin-bottom: 8px;">Training Forecasting Models...</h3>
+        <p id="forecast-running-status" style="color: var(--color-text-muted); font-size: 0.9rem; max-width: 480px; margin: 0 auto;">
+          Chronologically splitting holdout dataset and fitting eligible statistical & machine learning models...
+        </p>
+      </div>
+
+      <!-- Completed Results Container -->
+      <div id="forecast-completed-container" style="display: none;">
+        <div class="step-panel-header">
+          <div>
+            <h2>4. Forecast Results & Model Leaderboard</h2>
+            <p>Objective holdout evaluation, winning model selection, refitted projections, and explainability audit trail.</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <a id="btn-download-forecast-csv" href="#" class="btn-secondary-agent" style="padding: 8px 14px; font-size: 0.85rem;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Download Forecast CSV
+            </a>
+          </div>
+        </div>
+
+        <!-- Winner Hero Card -->
+        <div class="winner-hero-card" id="winner-hero-banner">
+          <div class="winner-hero-left">
+            <h3>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2.5"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
+              <span id="winner-model-name">Winning Model</span>
+            </h3>
+            <p id="winner-model-reason">Selected as top performing model across chronological holdout validation.</p>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-size: 0.76rem; text-transform: uppercase; font-weight: 700; color: #0369a1; letter-spacing: 0.05em; display: block;">Best Score (<span id="winner-metric-label">RMSE</span>)</span>
+            <span id="winner-metric-val" style="font-size: 1.85rem; font-weight: 800; color: #0c4a6e;">-</span>
+          </div>
+        </div>
+
+        <!-- Baseline Warning Banner (if no model beat baseline) -->
+        <div id="baseline-warning-banner" class="alert alert-warning" style="display: none; margin-bottom: 20px;">
+          <strong>Baseline Warning:</strong> No candidate model outperformed the Seasonal Naive baseline on MASE. Treat future forecasts with caution.
+        </div>
+
+        <!-- Model Leaderboard Table -->
+        <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--color-primary); margin-bottom: 12px;">Model Evaluation Leaderboard (Chronological Holdout)</h3>
+        <div class="table-responsive-wrapper">
+          <table class="table-custom" id="leaderboard-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">Rank</th>
+                <th>Model</th>
+                <th>RMSE</th>
+                <th>MAE</th>
+                <th>MAPE (%)</th>
+                <th>sMAPE (%)</th>
+                <th>MASE</th>
+                <th>Beats Baseline</th>
+                <th>Fit Time</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-tbody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Main Time-Series Forecast Chart -->
+        <div class="chart-card" style="margin-top: 28px;">
+          <div class="chart-header">
+            <div>
+              <h3>Historical Actuals vs. Future Projections (Prediction Bands)</h3>
+              <p style="margin: 0; font-size: 0.8rem; color: var(--color-text-muted);">Solid line: refitted winner. Shaded areas: 80% and 95% uncertainty intervals.</p>
+            </div>
+            <span class="badge badge-teal" id="chart-winner-badge">Winning Model</span>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="mainForecastChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Secondary Charts Grid: Model Error Comparison + Holdout Predictions -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; margin-bottom: 28px;">
+          <!-- Model Errors Comparison -->
+          <div class="chart-card" style="margin-bottom: 0;">
+            <div class="chart-header">
+              <h3>Holdout Error Metrics by Model</h3>
+            </div>
+            <div class="chart-wrapper-secondary">
+              <canvas id="errorMetricsChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Holdout Actual vs Models -->
+          <div class="chart-card" style="margin-bottom: 0;">
+            <div class="chart-header">
+              <h3>Holdout: Actual vs Predictions</h3>
+            </div>
+            <div class="chart-wrapper-secondary">
+              <canvas id="holdoutComparisonChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Explainability Audit Log Timeline -->
+        <div style="margin-bottom: 28px;">
+          <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--color-primary); margin-bottom: 4px;">Explainability Decision Log</h3>
+          <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 16px;">Transparent record of all validation checks, eligibility determinations, model evaluations, and refit operations.</p>
+          
+          <div class="audit-timeline" id="audit-timeline-container">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Future Forecast Table Preview -->
+        <div style="margin-bottom: 28px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--color-primary); margin: 0;">Projected Forecast Table</h3>
+            <span class="badge badge-navy" id="forecast-horizon-badge">12 Periods</span>
+          </div>
+          <div class="table-responsive-wrapper">
+            <table class="table-custom" id="forecast-points-table">
+              <thead>
+                <tr>
+                  <th>Period / Date</th>
+                  <th>Forecast Value</th>
+                  <th>Lower 80%</th>
+                  <th>Upper 80%</th>
+                  <th>Lower 95%</th>
+                  <th>Upper 95%</th>
+                </tr>
+              </thead>
+              <tbody id="forecast-points-tbody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="step-actions">
+          <button class="btn-secondary-agent" id="btn-process-another">&larr; Forecast Another Dataset</button>
+          <a href="/dashboard.html" class="btn-primary-agent">Return to Dashboard &rarr;</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREVIOUS JOB HISTORY SECTION -->
+    <section class="history-section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3>Forecasting Job History</h3>
+        <button class="btn-secondary-agent" id="btn-refresh-history" style="padding: 6px 12px; font-size: 0.8rem;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          Refresh
+        </button>
+      </div>
+
+      <div class="table-responsive-wrapper">
+        <table class="table-custom" id="history-table">
+          <thead>
+            <tr>
+              <th>Job ID</th>
+              <th>Dataset</th>
+              <th>Target Column</th>
+              <th>Horizon</th>
+              <th>Winner Model</th>
+              <th>Best RMSE</th>
+              <th>Status</th>
+              <th>Executed At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody">
+            <tr>
+              <td colspan="9" style="text-align: center; color: var(--color-text-subtle); padding: 24px;">No forecasting jobs on record yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/forecasting.js"></script>
+</body>
+</html>

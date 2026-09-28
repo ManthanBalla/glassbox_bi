@@ -14,15 +14,16 @@ GlassBox-BI is an enterprise business intelligence platform designed with a clea
 
 ```mermaid
 graph TD
-    subgraph Client ["Client Presentation Layer (HTML5 / Vanilla CSS / ES6)"]
+    subgraph Client ["Client Presentation Layer (HTML5 / Vanilla CSS / ES6 / Chart.js)"]
         UI_AUTH["Auth Pages (/login, /register, /forgot-password, /reset-password)"]
         UI_DASH["Dashboard Shell (/dashboard.html)"]
-        UI_AGENT["Preprocessing Agent Studio (/agents/preprocessing.html)"]
+        UI_PREP["Preprocessing Studio (/agents/preprocessing.html)"]
+        UI_FC["Forecasting Studio (/agents/forecasting.html)"]
     end
 
     subgraph Security ["Security & Guardrail Middleware"]
         HELMET["Helmet HTTP Security Headers"]
-        RATE["Rate Limiters (Login, Password Reset, Agent Dispatch)"]
+        RATE["Rate Limiters (Auth, Precheck, Run)"]
         CSRF["Double-Submit CSRF Verification (X-CSRF-Token)"]
         JWT_GUARD["JWT Session Guard (httpOnly auth_token)"]
         OWNER_GUARD["Resource Ownership Guard (User ID verification)"]
@@ -31,14 +32,22 @@ graph TD
     subgraph Gateway ["Express API Gateway (:3000)"]
         AUTH_ROUTER["Auth Controller (/api/auth/*)"]
         DATA_ROUTER["Dataset Controller (/api/datasets/*)"]
-        AGENT_PROXY["Preprocessing Agent Controller (/api/agents/preprocessing/*)"]
+        PREP_ROUTER["Preprocessing Agent Controller (/api/agents/preprocessing/*)"]
+        FC_ROUTER["Forecasting Agent Controller (/api/agents/forecasting/*)"]
         ASYNC_WORKER["Async Job Dispatcher & Status Tracker"]
     end
 
-    subgraph AgentMicroservice ["Data Preprocessing Microservice (FastAPI on :8001)"]
-        FASTAPI_EP["FastAPI Service (service.py)"]
-        PIPELINE["10-Step Time-Series Preprocessing Engine (pipeline.py)"]
-        SCORING["Quality & Readiness Scoring Module (formulas.py)"]
+    subgraph PrepAgentMicroservice ["Data Preprocessing Microservice (FastAPI on :8001)"]
+        PREP_FASTAPI["FastAPI Service (service.py)"]
+        PREP_PIPELINE["10-Step Time-Series Preprocessing Engine (pipeline.py)"]
+        PREP_SCORING["Quality & Readiness Scoring Module (formulas.py)"]
+    end
+
+    subgraph ForecastingAgentMicroservice ["Forecasting Microservice (FastAPI on :8002)"]
+        FC_FASTAPI["FastAPI Service (service.py)"]
+        FC_PIPELINE["10-Step Pipeline Engine (pipeline.py)"]
+        FC_MODELS["6 Model Wrappers (models.py: Naive, ETS, ARIMA, Prophet, LGBM, Theta)"]
+        FC_METRICS["Metrics Engine (metrics.py: MAE, RMSE, sMAPE, MASE)"]
     end
 
     subgraph External ["Third-Party External Services"]
@@ -46,7 +55,7 @@ graph TD
         GMAIL["Gmail SMTP Server (smtp.gmail.com:587)"]
     end
 
-    subgraph Storage ["Persistence Layer (PostgreSQL 18 on :5433)"]
+    subgraph Storage ["Persistence Layer (PostgreSQL on :5433)"]
         PG_POOL["pg Connection Pool"]
         TBL_USERS[("users")]
         TBL_TOKENS[("password_reset_tokens")]
@@ -54,7 +63,10 @@ graph TD
         TBL_JOBS[("processing_jobs")]
         TBL_PROCESSED[("processed_datasets")]
         TBL_ACTIONS[("cleaning_actions (Audit Log)")]
-        SQLITE_FALLBACK[("SQLite Backup (data/glassbox.db)")]
+        TBL_FC_JOBS[("forecast_jobs")]
+        TBL_FC_MODELS[("forecast_model_results")]
+        TBL_FC_POINTS[("forecast_points")]
+        TBL_FC_ACTIONS[("forecast_actions (Audit Log)")]
     end
 
     UI_AUTH -->|Credentials & Tokens| RATE
@@ -62,19 +74,28 @@ graph TD
     CSRF --> AUTH_ROUTER
 
     UI_DASH -->|API Queries & File Uploads| JWT_GUARD
-    UI_AGENT -->|Profile, Config & Execution| JWT_GUARD
+    UI_PREP -->|Profile, Config & Execution| JWT_GUARD
+    UI_FC -->|Precheck, Run & Visualizations| JWT_GUARD
     JWT_GUARD --> CSRF
     CSRF --> OWNER_GUARD
     OWNER_GUARD --> DATA_ROUTER
-    OWNER_GUARD --> AGENT_PROXY
+    OWNER_GUARD --> PREP_ROUTER
+    OWNER_GUARD --> FC_ROUTER
 
     AUTH_ROUTER <-->|OAuth Handshake| GOOGLE
     AUTH_ROUTER -->|Password Reset Dispatch| GMAIL
 
-    AGENT_PROXY --> ASYNC_WORKER
-    ASYNC_WORKER -->|Internal HTTP JSON| FASTAPI_EP
-    FASTAPI_EP --> PIPELINE
-    PIPELINE --> SCORING
+    PREP_ROUTER --> ASYNC_WORKER
+    FC_ROUTER --> ASYNC_WORKER
+    ASYNC_WORKER -->|Internal HTTP JSON| PREP_FASTAPI
+    ASYNC_WORKER -->|Internal HTTP JSON| FC_FASTAPI
+
+    PREP_FASTAPI --> PREP_PIPELINE
+    PREP_PIPELINE --> PREP_SCORING
+
+    FC_FASTAPI --> FC_PIPELINE
+    FC_PIPELINE --> FC_MODELS
+    FC_MODELS --> FC_METRICS
 
     AUTH_ROUTER --> PG_POOL
     DATA_ROUTER --> PG_POOL
@@ -86,7 +107,10 @@ graph TD
     PG_POOL --> TBL_JOBS
     PG_POOL --> TBL_PROCESSED
     PG_POOL --> TBL_ACTIONS
-    PG_POOL -.->|Fallback Engine| SQLITE_FALLBACK
+    PG_POOL --> TBL_FC_JOBS
+    PG_POOL --> TBL_FC_MODELS
+    PG_POOL --> TBL_FC_POINTS
+    PG_POOL --> TBL_FC_ACTIONS
 ```
 
 ---
@@ -273,7 +297,53 @@ EMAIL_FROM="GlassBox-BI Security" <no-reply@glassbox-bi.ai>
 # Preprocessing Agent Microservice
 AGENT_SERVICE_URL=http://127.0.0.1:8001
 AGENT_PORT=8001
+
+# Forecasting Agent Microservice
+FORECASTING_AGENT_URL=http://127.0.0.1:8002
+FORECASTING_PORT=8002
 ```
+
+---
+
+## 📈 Forecasting Agent
+
+The **Forecasting Agent** consumes the clean, forecast-ready time-series dataset produced by the Preprocessing Agent (`processed_datasets`), trains a portfolio of competitive forecasting models on a chronological training set, evaluates them on an out-of-sample holdout without data leakage, objectively ranks them, refits the winning model on all data, and generates multi-step future forecasts with 80% and 95% confidence intervals.
+
+### Model Portfolio (Common Interface: `fit`, `predict`, `predict_interval`, `get_metadata`):
+1. **Seasonal Naive** (Baseline, always runs): Repeats the preceding seasonal cycle values based on dataset frequency.
+2. **ETS / Exponential Smoothing** (`statsmodels`): Automatic additive/multiplicative trend and seasonality order selection.
+3. **ARIMA / SARIMA** (`statsmodels`): Autoregressive integrated moving average with AIC-driven grid search.
+4. **Prophet** (`prophet`): Additive/multiplicative Bayesian generalized additive model for trend and calendar seasonality.
+5. **LightGBM** (`lightgbm`): Gradient boosted decision trees using strictly backward-looking lag, rolling, and calendar features with recursive multi-step forecasting.
+6. **Theta** (`statsmodels`): Theta method decomposing the series into dual curvature and trend lines.
+
+### 10-Step Pipeline Sequence:
+1. **LOAD**: Reads cleaned time-series data using stored date, target column, and frequency metadata.
+2. **TIME-SERIES VALIDATION**: Verifies sorted, monotonic dates, zero target nulls, non-constant values, and minimum observation limits (fails below 24, warns below 50).
+3. **MODEL ELIGIBILITY CHECK**: Evaluates length constraints and seasonal cycles per model with logged reasons.
+4. **FEATURE ENGINEERING** (LightGBM): Generates lag features (1, 2, 3, seasonal), rolling window statistics (shifted backward), and calendar features.
+5. **CHRONOLOGICAL SPLIT**: Holds out the last $H = \min(\text{horizon}, 0.20 \times N)$ observations (minimum 3) without shuffling.
+6. **TRAIN & PREDICT HOLDOUT**: Fits models on train split only; generates out-of-sample predictions (recursive for LightGBM).
+7. **EVALUATION & BENCHMARKING**: Computes holdout MAE, RMSE, MAPE (handles zero actuals safely), sMAPE, and MASE against the Seasonal Naive baseline.
+8. **MODEL SELECTION**: Ranks models by RMSE (or MAE / sMAPE). Flags whether models beat baseline and selects the objective winner.
+9. **REFIT & FORECAST**: Refits the winning model on all $N$ observations and forecasts the target horizon with 80% and 95% prediction intervals.
+10. **EXPORT & XAI ARTIFACTS**: Exports `forecast.csv`, `holdout_predictions.csv`, `report.json`, model binary (`model.joblib`), and feature metadata (`metadata.json`) for downstream Explainable AI (XAI) analysis.
+
+### Database Tables (PostgreSQL):
+- `forecast_jobs`: UUID primary key, user ID, processed dataset ID, status, config JSONB, horizon, selected metric, winner model, error message, execution timestamps.
+- `forecast_model_results`: Per-model evaluations (MAE, RMSE, MAPE, sMAPE, MASE, beats_baseline flag, rank, hyperparameters JSONB, training duration, skip reasons).
+- `forecast_points`: Predicted future timestamps, point forecasts, and 80%/95% prediction interval bands.
+- `forecast_actions`: Granular explainability audit trail logging each pipeline step and decision.
+
+### Express API Endpoints (`/api/agents/forecasting/*`):
+- `GET /api/agents/forecasting/datasets`: Lists user's completed preprocessed datasets.
+- `POST /api/agents/forecasting/precheck`: Pre-validates series and determines model eligibility with plain-English rationales.
+- `POST /api/agents/forecasting/run`: Asynchronously launches the 10-step forecasting pipeline.
+- `GET /api/agents/forecasting/jobs/:jobId`: Returns job status for real-time polling.
+- `GET /api/agents/forecasting/jobs/:jobId/report`: Full report with winner banner, leaderboard, and audit log.
+- `GET /api/agents/forecasting/jobs/:jobId/forecast`: Historical actuals, holdout predictions, and future forecasts with confidence intervals.
+- `GET /api/agents/forecasting/jobs/:jobId/download`: Downloads `forecast.csv`.
+- `GET /api/agents/forecasting/jobs`: User's historical forecasting runs.
 
 ---
 
@@ -284,47 +354,62 @@ AGENT_PORT=8001
 # Install Node.js backend packages
 npm install
 
-# Install Python microservice requirements
+# Install Python Preprocessing & Forecasting microservice requirements
 pip install -r agents/preprocessing/requirements.txt
+pip install -r agents/forecasting/requirements.txt
 ```
+
+> **Python Compatibility Note**: Compatible with Python 3.11, 3.12, 3.13, and 3.14. All core forecasting libraries (`statsmodels`, `prophet`, `lightgbm`, `fastapi`, `uvicorn`, `scipy`, `pandas`, `numpy`, `joblib`, `scikit-learn`) are verified. Each model wrapper is isolated and fails gracefully if an optional dependency is missing.
 
 ### 2. Initialize Database Schema
 ```bash
 npm run db:init
 ```
 
-### 3. Start Both Services Together
+### 3. Start All Services Concurrently
 ```bash
 npm run start:all
 ```
-*This command starts both the Python FastAPI Agent microservice on port 8001 and the Express server on port 3000.*
+*This command starts all three services simultaneously:*
+- **Express Backend API Gateway**: `http://localhost:3000`
+- **Data Preprocessing Agent Microservice**: `http://127.0.0.1:8001`
+- **Forecasting Agent Microservice**: `http://127.0.0.1:8002`
 
 To start services individually:
 ```bash
-# Terminal 1: Python Preprocessing Microservice
-npm run agent:start
+# Terminal 1: Python Preprocessing Microservice (port 8001)
+npm run agent:preprocessing:start
 
-# Terminal 2: Express Backend Server
+# Terminal 2: Python Forecasting Microservice (port 8002)
+npm run agent:forecasting:start
+
+# Terminal 3: Express Backend Gateway (port 3000)
 npm start
 ```
 
 ### 4. Running Tests
 ```bash
-# Run all test suites (Backend + Preprocessing Integration + Python Unit Tests)
+# Run all test suites across the platform (Auth + Preprocessing + Forecasting + Python tests)
 npm run test:all
 
-# Run Core E2E Tests (Authentication, Database, Uploads)
+# Run Core Auth & Database Tests
 npm test
 
-# Run Preprocessing Agent Integration Tests
-npm run test:agent
+# Run Preprocessing Agent E2E Tests
+npm run test:preprocessing
 
-# Run Python Preprocessing Pipeline Unit Tests
-npm run agent:test
+# Run Forecasting Agent E2E Tests
+npm run test:forecasting
+
+# Run Python Unit Tests
+npm run agent:preprocessing:test
+npm run agent:forecasting:test
 ```
 
 ### 5. Accessing in Browser
 - **Dashboard**: [http://localhost:3000/dashboard.html](http://localhost:3000/dashboard.html)
 - **Data Preprocessing Agent**: [http://localhost:3000/agents/preprocessing.html](http://localhost:3000/agents/preprocessing.html)
-- **Login**: [http://localhost:3000/login.html](http://localhost:3000/login.html)
-- **Health Diagnostics**: [http://localhost:3000/api/health](http://localhost:3000/api/health)
+- **Forecasting Agent**: [http://localhost:3000/agents/forecasting.html](http://localhost:3000/agents/forecasting.html)
+- **Login / Register**: [http://localhost:3000/login.html](http://localhost:3000/login.html)
+- **System Health Diagnostics**: [http://localhost:3000/api/health](http://localhost:3000/api/health)
+

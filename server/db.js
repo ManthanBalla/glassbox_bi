@@ -108,6 +108,67 @@ function initSqlite() {
     CREATE INDEX IF NOT EXISTS idx_processed_datasets_job ON processed_datasets(job_id);
     CREATE INDEX IF NOT EXISTS idx_processed_datasets_user ON processed_datasets(user_id);
     CREATE INDEX IF NOT EXISTS idx_cleaning_actions_job ON cleaning_actions(job_id);
+
+    CREATE TABLE IF NOT EXISTS forecast_jobs (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      processed_dataset_id TEXT NOT NULL REFERENCES processed_datasets(id) ON DELETE CASCADE,
+      status TEXT DEFAULT 'queued',
+      config_json TEXT,
+      horizon INTEGER,
+      selected_metric TEXT,
+      winner_model TEXT,
+      error_message TEXT,
+      started_at DATETIME,
+      finished_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS forecast_model_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id TEXT NOT NULL REFERENCES forecast_jobs(id) ON DELETE CASCADE,
+      model_name TEXT NOT NULL,
+      status TEXT NOT NULL,
+      skip_reason TEXT,
+      mae REAL,
+      rmse REAL,
+      mape REAL,
+      smape REAL,
+      mase REAL,
+      beats_baseline INTEGER,
+      rank INTEGER,
+      hyperparameters_json TEXT,
+      train_seconds REAL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS forecast_points (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id TEXT NOT NULL REFERENCES forecast_jobs(id) ON DELETE CASCADE,
+      forecast_date TEXT NOT NULL,
+      forecast_value REAL NOT NULL,
+      lower_80 REAL,
+      upper_80 REAL,
+      lower_95 REAL,
+      upper_95 REAL
+    );
+
+    CREATE TABLE IF NOT EXISTS forecast_actions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id TEXT NOT NULL REFERENCES forecast_jobs(id) ON DELETE CASCADE,
+      step_order INTEGER,
+      step_name TEXT,
+      model_name TEXT,
+      action TEXT,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_forecast_jobs_user ON forecast_jobs(user_id);
+    CREATE INDEX IF NOT EXISTS idx_forecast_jobs_dataset ON forecast_jobs(processed_dataset_id);
+    CREATE INDEX IF NOT EXISTS idx_forecast_model_results_job ON forecast_model_results(job_id);
+    CREATE INDEX IF NOT EXISTS idx_forecast_points_job ON forecast_points(job_id);
+    CREATE INDEX IF NOT EXISTS idx_forecast_actions_job ON forecast_actions(job_id);
   `);
 
   activeEngine = 'sqlite';

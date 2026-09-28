@@ -13,18 +13,29 @@ console.log('============================================================');
 console.log('  Starting GlassBox-BI Platform Services');
 console.log('============================================================');
 
-// 1. Start Python Preprocessing Microservice
-const pythonProcess = spawn('python', ['agents/preprocessing/service.py'], {
+// 1. Start Python Preprocessing Microservice (port 8001)
+const preprocessingProcess = spawn('python', ['agents/preprocessing/service.py'], {
   cwd: projectRoot,
   env: { ...process.env, PYTHONPATH: path.join(projectRoot, 'agents', 'preprocessing') },
   stdio: 'inherit'
 });
 
-pythonProcess.on('error', (err) => {
-  console.error('[Python Agent Service Error]', err.message);
+preprocessingProcess.on('error', (err) => {
+  console.error('[Preprocessing Agent Service Error]', err.message);
 });
 
-// 2. Start Express Backend
+// 2. Start Python Forecasting Microservice (port 8002)
+const forecastingProcess = spawn('python', ['agents/forecasting/service.py'], {
+  cwd: projectRoot,
+  env: { ...process.env, PYTHONPATH: path.join(projectRoot, 'agents', 'forecasting') },
+  stdio: 'inherit'
+});
+
+forecastingProcess.on('error', (err) => {
+  console.error('[Forecasting Agent Service Error]', err.message);
+});
+
+// 3. Start Express Backend (port 3000)
 const nodeProcess = spawn('node', ['server/server.js'], {
   cwd: projectRoot,
   env: process.env,
@@ -38,7 +49,8 @@ nodeProcess.on('error', (err) => {
 // Handle graceful shutdown
 function shutdown() {
   console.log('\nShutting down all GlassBox-BI services...');
-  try { pythonProcess.kill('SIGTERM'); } catch (e) {}
+  try { preprocessingProcess.kill('SIGTERM'); } catch (e) {}
+  try { forecastingProcess.kill('SIGTERM'); } catch (e) {}
   try { nodeProcess.kill('SIGTERM'); } catch (e) {}
   process.exit(0);
 }

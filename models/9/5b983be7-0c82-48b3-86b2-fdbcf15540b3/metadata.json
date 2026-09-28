@@ -1,0 +1,39 @@
+{
+  "model_name": "LightGBM",
+  "target_column": "quantity",
+  "date_column": "transaction_date",
+  "frequency": "D",
+  "seasonal_period": 7,
+  "features": [
+    "lag_1",
+    "lag_2",
+    "lag_3",
+    "lag_m",
+    "roll_mean_3",
+    "roll_std_3",
+    "time_index",
+    "month",
+    "quarter",
+    "dayofweek",
+    "is_month_end"
+  ],
+  "hyperparameters": {
+    "n_estimators": 100,
+    "learning_rate": 0.05,
+    "num_leaves": 15,
+    "features_engineered": [
+      "lag_1",
+      "lag_2",
+      "lag_3",
+      "lag_m",
+      "roll_mean_3",
+      "roll_std_3",
+      "time_index",
+      "month",
+      "quarter",
+      "dayofweek",
+      "is_month_end"
+    ]
+  },
+  "created_at": 1790574464.4724095
+}

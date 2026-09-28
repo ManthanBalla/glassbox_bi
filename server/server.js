@@ -9,6 +9,7 @@ const { csrfMiddleware, generateCsrfToken } = require('./middleware/csrf');
 const authRoutes = require('./routes/auth');
 const datasetsRoutes = require('./routes/datasets');
 const preprocessingRoutes = require('./routes/preprocessing');
+const forecastingRoutes = require('./routes/forecasting');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -56,6 +57,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/datasets', datasetsRoutes);
 app.use('/api/agents/preprocessing', preprocessingRoutes);
+app.use('/api/agents/forecasting', forecastingRoutes);
 
 // Clean Route Handlers for Frontend HTML Pages
 app.get('/login', (req, res) => {
@@ -80,6 +82,10 @@ app.get('/dashboard', (req, res) => {
 
 app.get('/agents/preprocessing', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'agents', 'preprocessing.html'));
+});
+
+app.get('/agents/forecasting', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'agents', 'forecasting.html'));
 });
 
 
