@@ -638,6 +638,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .dataset-format-icon {
@@ -652,17 +654,26 @@
   font-size: 0.65rem;
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
+  flex-shrink: 0;
 }
 
 .dataset-format-icon.csv { background-color: #0d9488; }
 .dataset-format-icon.xls,
 .dataset-format-icon.xlsx { background-color: #10b981; }
 
+.dataset-details {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .dataset-details h4 {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-primary-dark);
   margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dataset-meta {

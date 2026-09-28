@@ -3,7 +3,7 @@ const rateLimit = require('express-rate-limit');
 // Rate limiter for authentication login endpoint (prevent brute-force attacks)
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 login requests per windowMs
+  max: process.env.NODE_ENV === 'test' ? 1000 : 50, // Permissive during test runs, strict in production
   standardHeaders: true,
   legacyHeaders: false,
   message: {

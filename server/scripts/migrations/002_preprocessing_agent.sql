@@ -1,41 +1,7 @@
--- PostgreSQL Schema for GlassBox-BI
+-- Migration: 002_preprocessing_agent.sql
+-- Description: Adds tables for Data Preprocessing Agent jobs, processed datasets, and audit logs.
 
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    full_name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255),
-    auth_provider VARCHAR(50) DEFAULT 'local',
-    google_id VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS password_reset_tokens (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token VARCHAR(255) UNIQUE NOT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    used BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS uploaded_datasets (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    file_name VARCHAR(255) NOT NULL,
-    file_type VARCHAR(100) NOT NULL,
-    file_size BIGINT NOT NULL,
-    storage_path TEXT NOT NULL,
-    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(50) DEFAULT 'ready'
-);
-
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_reset_token ON password_reset_tokens(token);
-CREATE INDEX IF NOT EXISTS idx_datasets_user ON uploaded_datasets(user_id);
-
--- Preprocessing Agent Tables
+-- 1. Processing Jobs Table
 CREATE TABLE IF NOT EXISTS processing_jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -48,6 +14,7 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 2. Processed Datasets Table
 CREATE TABLE IF NOT EXISTS processed_datasets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     job_id UUID NOT NULL REFERENCES processing_jobs(id) ON DELETE CASCADE,
@@ -67,6 +34,7 @@ CREATE TABLE IF NOT EXISTS processed_datasets (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 3. Cleaning Actions / Audit Log Table
 CREATE TABLE IF NOT EXISTS cleaning_actions (
     id SERIAL PRIMARY KEY,
     job_id UUID NOT NULL REFERENCES processing_jobs(id) ON DELETE CASCADE,
@@ -80,9 +48,9 @@ CREATE TABLE IF NOT EXISTS cleaning_actions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 4. Indexes for high-performance querying
 CREATE INDEX IF NOT EXISTS idx_processing_jobs_user ON processing_jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_processing_jobs_dataset ON processing_jobs(dataset_id);
 CREATE INDEX IF NOT EXISTS idx_processed_datasets_job ON processed_datasets(job_id);
 CREATE INDEX IF NOT EXISTS idx_processed_datasets_user ON processed_datasets(user_id);
 CREATE INDEX IF NOT EXISTS idx_cleaning_actions_job ON cleaning_actions(job_id);
-

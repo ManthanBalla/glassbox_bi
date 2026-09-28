@@ -58,6 +58,56 @@ function initSqlite() {
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     CREATE INDEX IF NOT EXISTS idx_reset_token ON password_reset_tokens(token);
     CREATE INDEX IF NOT EXISTS idx_datasets_user ON uploaded_datasets(user_id);
+
+    CREATE TABLE IF NOT EXISTS processing_jobs (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      dataset_id INTEGER NOT NULL REFERENCES uploaded_datasets(id) ON DELETE CASCADE,
+      status TEXT DEFAULT 'queued',
+      config_json TEXT,
+      error_message TEXT,
+      started_at DATETIME,
+      finished_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS processed_datasets (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL REFERENCES processing_jobs(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source_dataset_id INTEGER NOT NULL REFERENCES uploaded_datasets(id) ON DELETE CASCADE,
+      file_path TEXT NOT NULL,
+      rows_before INTEGER,
+      rows_after INTEGER,
+      columns_before INTEGER,
+      columns_after INTEGER,
+      date_column TEXT,
+      target_column TEXT,
+      frequency TEXT,
+      quality_score_before REAL,
+      quality_score_after REAL,
+      readiness_score REAL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS cleaning_actions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id TEXT NOT NULL REFERENCES processing_jobs(id) ON DELETE CASCADE,
+      step_order INTEGER,
+      step_name TEXT,
+      column_name TEXT,
+      action TEXT,
+      method TEXT,
+      rows_affected INTEGER,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_processing_jobs_user ON processing_jobs(user_id);
+    CREATE INDEX IF NOT EXISTS idx_processing_jobs_dataset ON processing_jobs(dataset_id);
+    CREATE INDEX IF NOT EXISTS idx_processed_datasets_job ON processed_datasets(job_id);
+    CREATE INDEX IF NOT EXISTS idx_processed_datasets_user ON processed_datasets(user_id);
+    CREATE INDEX IF NOT EXISTS idx_cleaning_actions_job ON cleaning_actions(job_id);
   `);
 
   activeEngine = 'sqlite';

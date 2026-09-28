@@ -36,9 +36,8 @@
           </div>
         </div>
 
-        <!-- Right: Database indicator & Profile Menu & Mobile Hamburger -->
+        <!-- Right: Profile Menu & Mobile Hamburger -->
         <div class="navbar-right">
-          <span id="db-status-badge" class="badge badge-navy" style="font-size: 0.65rem;">POSTGRESQL</span>
 
           <!-- Profile Dropdown Container -->
           <div class="profile-menu-container">
@@ -141,8 +140,8 @@
                 <!-- Step 2 -->
                 <div class="step-item">
                   <div class="step-badge">2</div>
-                  <div class="step-name">Select an Agent</div>
-                  <div class="step-desc">Choose from specialized agents (Preprocessing, Forecasting, BI, Evaluation, XAI).</div>
+                  <div class="step-name">Run Preprocessing Agent</div>
+                  <div class="step-desc">Clean, standardize, and prepare your time-series dataset with explainable audit logs.</div>
                 </div>
 
                 <!-- Step 3 -->
@@ -213,7 +212,6 @@
             <div class="datasets-list-section">
               <div class="datasets-list-header">
                 <span>Ingested Datasets</span>
-                <span class="badge badge-navy" style="font-size: 0.7rem;">Stored in PostgreSQL</span>
               </div>
 
               <div id="datasets-empty-state" style="padding: 24px; text-align: center; color: var(--color-text-subtle); background: var(--color-bg-base); border-radius: var(--radius-md); border: 1px dashed var(--border-color); font-size: 13px;">
@@ -240,14 +238,14 @@
           </div>
 
           <div class="agents-stack">
-            <!-- 1. Data Preprocessing Agent -->
-            <div class="agent-card" title="Data Preprocessing Agent">
-              <div class="agent-card-icon">
+            <!-- 1. Data Preprocessing Agent (Active) -->
+            <a href="/agents/preprocessing.html" class="agent-card agent-card-active" id="agent-preprocessing-card" title="Launch Data Preprocessing Agent" style="text-decoration: none; display: flex; cursor: pointer; border-color: var(--color-teal); box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.2);">
+              <div class="agent-card-icon" style="background: rgba(13, 148, 136, 0.15); color: var(--color-teal);">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></svg>
               </div>
-              <div class="agent-card-title">Data Preprocessing Agent</div>
-              <span class="agent-card-badge">Agent 01</span>
-            </div>
+              <div class="agent-card-title" style="color: var(--color-navy); font-weight: 600;">Data Preprocessing Agent</div>
+              <span class="agent-card-badge" style="background: rgba(13, 148, 136, 0.12); color: var(--color-teal); border: 1px solid rgba(13, 148, 136, 0.3);">Active • Launch &rarr;</span>
+            </a>
 
             <!-- 2. Forecasting Agent -->
             <div class="agent-card" title="Forecasting Agent">

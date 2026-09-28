@@ -6,7 +6,12 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "node server/server.js",
+    "start:all": "node server/scripts/startAll.js",
+    "agent:start": "python agents/preprocessing/service.py",
+    "agent:test": "python agents/preprocessing/test_pipeline.py",
     "test": "node server/scripts/test-e2e.js",
+    "test:agent": "node server/scripts/test-preprocessing-e2e.js",
+    "test:all": "node server/scripts/test-e2e.js && node server/scripts/test-preprocessing-e2e.js && python agents/preprocessing/test_pipeline.py",
     "db:init": "node server/scripts/initPostgres.js"
   },
   "keywords": [],
