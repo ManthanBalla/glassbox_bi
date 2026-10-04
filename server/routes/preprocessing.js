@@ -162,11 +162,12 @@ router.post('/run', authenticateToken, runJobLimiter, async (req, res) => {
       safeConfig.outlier_method = 'iqr';
     }
     if (safeConfig.outlier_action && !validOutlierActions.includes(safeConfig.outlier_action.toLowerCase())) {
-      safeConfig.outlier_action = 'cap';
+      safeConfig.outlier_action = 'flag';
     }
     if (safeConfig.duplicate_aggregation && !validAggMethods.includes(safeConfig.duplicate_aggregation.toLowerCase())) {
       safeConfig.duplicate_aggregation = 'sum';
     }
+    if (!['linear', 'forward_fill'].includes(safeConfig.imputation_strategy)) safeConfig.imputation_strategy = 'linear';
     const missingThreshold = parseFloat(safeConfig.missing_threshold);
     safeConfig.missing_threshold = (!isNaN(missingThreshold) && missingThreshold > 0 && missingThreshold <= 100) ? missingThreshold : 60.0;
 
@@ -286,9 +287,14 @@ router.get('/jobs/:jobId', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Job not found or access denied.' });
     }
 
+    let progressStage = null;
+    const progressPath = path.join(PROCESSED_ROOT, `user_${req.user.id}`, jobId, 'progress.json');
+    if (fs.existsSync(progressPath)) {
+      try { progressStage = JSON.parse(fs.readFileSync(progressPath, 'utf8')).stage || null; } catch (_) {}
+    }
     return res.json({
       success: true,
-      job: jobRes.rows[0]
+      job: { ...jobRes.rows[0], progress_stage: progressStage }
     });
   } catch (err) {
     console.error('[Get Job Status Error]', err);
@@ -354,7 +360,7 @@ router.get('/jobs/:jobId/report', authenticateToken, async (req, res) => {
       success: true,
       job,
       dataset: datasetInfo,
-      audit_log: actionsRes.rows,
+      audit_log: diskReport.audit_log || actionsRes.rows,
       readiness: {
         score: datasetInfo.readiness_score,
         overall_status: diskReport.overall_status || (datasetInfo.readiness_score >= 80 ? 'READY' : 'WARN'),
@@ -367,7 +373,20 @@ router.get('/jobs/:jobId/report', authenticateToken, async (req, res) => {
           ? Math.round(((datasetInfo.quality_score_after - datasetInfo.quality_score_before) / datasetInfo.quality_score_before) * 100)
           : 0
       },
-      sample_cleaned_data: diskReport.sample_cleaned_data || []
+      sample_cleaned_data: diskReport.sample_cleaned_data || [],
+      role_analysis: diskReport.role_analysis || {},
+      time_health: diskReport.time_health || {},
+      forecastability: diskReport.forecastability || {},
+      processing_confidence: diskReport.processing_confidence || {},
+      comparison: diskReport.comparison || {},
+      outlier_events: diskReport.outlier_events || [],
+      transformation_recipe: diskReport.transformation_recipe || {},
+      data_contract: diskReport.data_contract || {},
+      quality_breakdown: diskReport.quality_breakdown || {},
+      quality_dimensions: diskReport.quality_dimensions || {},
+      raw_chart: diskReport.raw_chart || [],
+      chart_cleaned: diskReport.chart_cleaned || [],
+      handoff_files: diskReport.handoff_files || []
     });
   } catch (err) {
     console.error('[Get Job Report Error]', err);
@@ -438,6 +457,15 @@ router.get('/jobs/:jobId/download', authenticateToken, async (req, res) => {
     console.error('[Download Cleaned Dataset Error]', err);
     return res.status(500).json({ success: false, message: 'Failed to download file.' });
   }
+});
+
+// Download the complete structured report without changing the CSV endpoint.
+router.get('/jobs/:jobId/report/download', authenticateToken, async (req, res) => {
+  const result = await db.query('SELECT id FROM processing_jobs WHERE id = $1 AND user_id = $2 AND status = $3', [req.params.jobId, req.user.id, 'completed']);
+  if (!result.rows.length) return res.status(404).json({ success: false, message: 'Completed job not found.' });
+  const reportPath = path.join(PROCESSED_ROOT, `user_${req.user.id}`, req.params.jobId, 'report.json');
+  if (!fs.existsSync(reportPath)) return res.status(404).json({ success: false, message: 'Report file not found.' });
+  return res.download(reportPath, `preprocessing_report_${req.params.jobId}.json`);
 });
 
 // -------------------------------------------------------------

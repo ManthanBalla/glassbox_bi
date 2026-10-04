@@ -54,6 +54,9 @@ class ForecastRequest(BaseModel):
     confidence_levels: Optional[List[float]] = None
     output_dir: Optional[str] = None
     models_dir: Optional[str] = None
+    evaluation_file_path: Optional[str] = None
+    preprocessing_recipe: Optional[Dict[str, Any]] = None
+    preprocessing_contract: Optional[Dict[str, Any]] = None
 
 
 @app.get("/health")
@@ -135,7 +138,10 @@ def run_forecast(req: ForecastRequest):
             holdout_percent=req.holdout_percent or 0.20,
             confidence_levels=req.confidence_levels,
             output_dir=req.output_dir,
-            models_dir=req.models_dir
+            models_dir=req.models_dir,
+            evaluation_file_path=req.evaluation_file_path,
+            preprocessing_recipe=req.preprocessing_recipe,
+            preprocessing_contract=req.preprocessing_contract
         )
 
         report = pipeline.run()

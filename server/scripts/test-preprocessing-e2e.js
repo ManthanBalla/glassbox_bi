@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 let userA = { email: `analyst_agent_${Date.now()}@glassbox.ai`, password: 'TestPassword123!', confirm_password: 'TestPassword123!', full_name: 'Agent Tester' };
 let userB = { email: `other_analyst_${Date.now()}@glassbox.ai`, password: 'TestPassword123!', confirm_password: 'TestPassword123!', full_name: 'Other Analyst' };
 
@@ -139,12 +139,14 @@ async function runTests() {
 
   // 8. Poll for Job Completion
   let jobCompleted = false;
+  let lastProgressStage = null;
   let attempts = 0;
   while (!jobCompleted && attempts < 20) {
     await new Promise(r => setTimeout(r, 1000));
     const statusRes = await axios.get(`${BASE_URL}/api/agents/preprocessing/jobs/${jobIdA}`, {
       headers: { 'Cookie': cookiesA }
     });
+    lastProgressStage = statusRes.data.job.progress_stage;
     if (statusRes.data.job.status === 'completed') {
       jobCompleted = true;
       break;
@@ -155,6 +157,7 @@ async function runTests() {
     attempts++;
   }
   assert(jobCompleted === true, `Job ${jobIdA} completed successfully within timeout`);
+  assert(lastProgressStage === 'complete', 'Job status exposes completed pipeline progress');
 
   // 9. Fetch Full Report
   const reportRes = await axios.get(`${BASE_URL}/api/agents/preprocessing/jobs/${jobIdA}/report`, {
@@ -166,6 +169,15 @@ async function runTests() {
   assert(report.readiness.score >= 70, `Forecast Readiness Score: ${report.readiness.score}/100 (${report.readiness.overall_status})`);
   assert(Array.isArray(report.audit_log) && report.audit_log.length >= 6, `Explainability audit log has ${report.audit_log.length} actions`);
   assert(Array.isArray(report.readiness.checklist) && report.readiness.checklist.length === 5, 'Readiness checklist has all 5 verification dimensions');
+  assert(report.data_contract?.date_column === 'order_date' && report.data_contract?.target_column === 'revenue', 'Data contract contains the selected series');
+  assert(typeof report.forecastability?.score === 'number' && report.processing_confidence?.level, 'Forecastability and processing confidence returned');
+  assert(typeof report.time_health?.missing_periods === 'number' && Array.isArray(report.outlier_events), 'Time health and anomaly details returned');
+  const handoffDir = path.resolve(__dirname, '..', '..', path.dirname(report.dataset.file_path));
+  for (const filename of ['schema.json', 'data_quality.json', 'forecast_readiness.json', 'forecastability.json', 'transformation_log.json', 'data_contract.json', 'preprocessing_metadata.json', 'evaluation_source.csv']) {
+    assert(fs.existsSync(path.join(handoffDir, filename)), `Handoff file saved: ${filename}`);
+  }
+  const reportDownload = await axios.get(`${BASE_URL}/api/agents/preprocessing/jobs/${jobIdA}/report/download`, { headers: { 'Cookie': cookiesA } });
+  assert(reportDownload.status === 200 && reportDownload.data.data_contract?.target_column === 'revenue', 'Structured report downloaded');
 
   // Verify an audit log entry format
   const firstAction = report.audit_log[0];

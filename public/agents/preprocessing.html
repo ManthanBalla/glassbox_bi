@@ -69,11 +69,8 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></svg>
         </div>
         <div class="agent-title-block">
-          <h1>
-            <span>Data Preprocessing Agent</span>
-            <span class="badge badge-teal" style="font-size: 0.72rem; vertical-align: middle;">Explainable Time-Series Pipeline</span>
-          </h1>
-          <p>Automated tabular cleansing, type standardization, timestamp aggregation, outlier treatment, and forecast readiness evaluation.</p>
+          <h1>Data Quality &amp; Time-Series Intelligence</h1>
+          <p>Understand your data. Prepare a trustworthy series for forecasting.</p>
         </div>
       </div>
       <div>
@@ -81,14 +78,6 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           Upload New Dataset
         </a>
-      </div>
-    </div>
-
-    <!-- What Does This Agent Do? Banner -->
-    <div class="agent-help-banner">
-      <div>
-        <strong>What does this agent do?</strong>
-        <p>This agent cleans raw tabular metrics into an aligned, gap-free, forecast-ready time-series dataset. Every transformation is logged into an explainable audit trail. To preserve model integrity and avoid data leakage, data is <strong>never normalized or scaled</strong> here (scaling is handled downstream by the Forecasting Agent).</p>
       </div>
     </div>
 
@@ -108,7 +97,7 @@
         <div class="stepper-circle">2</div>
         <div class="stepper-label">
           <span class="stepper-label-num">Step 2</span>
-          <span class="stepper-label-title">Data Profile</span>
+          <span class="stepper-label-title">Profile &amp; Detect</span>
         </div>
       </div>
       <div class="stepper-step" id="stepper-step-3">
@@ -131,8 +120,7 @@
     <section class="step-panel active" id="panel-step-1">
       <div class="step-panel-header">
         <div>
-          <h2>1. Select an Ingested Dataset</h2>
-          <p>Choose one of your uploaded files to profile and prepare for forecasting.</p>
+          <h2>Select Dataset</h2>
         </div>
       </div>
 
@@ -176,7 +164,7 @@
         <div class="step-actions">
           <div></div>
           <button class="btn-primary-agent" id="btn-to-step-2" disabled>
-            Inspect & Profile Dataset &rarr;
+            Continue &rarr;
           </button>
         </div>
       </div>
@@ -186,8 +174,7 @@
     <section class="step-panel" id="panel-step-2">
       <div class="step-panel-header">
         <div>
-          <h2>2. Dataset Health & Profiling</h2>
-          <p>Initial inspection of column data types, completeness, duplicate rows, and baseline quality score.</p>
+          <h2>Profile &amp; Detect</h2>
         </div>
         <div id="profile-quality-badge-wrap"></div>
       </div>
@@ -205,6 +192,10 @@
           <span class="metric-card-sub">Features</span>
         </div>
         <div class="metric-card">
+          <span class="metric-card-label">Missing</span>
+          <span class="metric-card-value" id="prof-missing">-</span>
+        </div>
+        <div class="metric-card">
           <span class="metric-card-label">Duplicate Rows</span>
           <span class="metric-card-value" id="prof-dups">-</span>
           <span class="metric-card-sub">Exact duplicates</span>
@@ -215,6 +206,8 @@
           <span class="metric-card-sub">Baseline (0-100)</span>
         </div>
       </div>
+      <div class="detected-roles" id="detected-roles" aria-live="polite"></div>
+      <div class="dimension-row"><strong>Detected dimensions</strong><div id="detected-dimensions"></div></div>
 
       <!-- Column Breakdown Table -->
       <h3 style="font-size: 1rem; font-weight: 600; color: var(--color-primary); margin: 0 0 12px 0;">Column Analysis & Missingness</h3>
@@ -224,10 +217,8 @@
             <tr>
               <th>Column Name</th>
               <th>Detected Type</th>
-              <th>Missing Count</th>
               <th>Missing %</th>
-              <th>Unique Values</th>
-              <th>Min / Max / Mean</th>
+              <th>Role</th>
             </tr>
           </thead>
           <tbody id="columns-profile-tbody">
@@ -237,7 +228,7 @@
       </div>
 
       <!-- Raw Sample Preview -->
-      <h3 style="font-size: 1rem; font-weight: 600; color: var(--color-primary); margin: 20px 0 12px 0;">Raw Data Sample (First 5 Rows)</h3>
+      <details class="quiet-details"><summary>View raw sample</summary>
       <div class="table-responsive-wrapper">
         <table class="table-custom" id="raw-sample-table">
           <thead id="raw-sample-thead"></thead>
@@ -245,9 +236,10 @@
         </table>
       </div>
 
+      </details>
       <div class="step-actions">
         <button class="btn-secondary-agent" id="btn-back-to-step-1">&larr; Back to Selection</button>
-        <button class="btn-primary-agent" id="btn-to-step-3">Configure Pipeline Parameters &rarr;</button>
+        <button class="btn-primary-agent" id="btn-to-step-3">Continue to Configure &rarr;</button>
       </div>
     </section>
 
@@ -255,12 +247,13 @@
     <section class="step-panel" id="panel-step-3">
       <div class="step-panel-header">
         <div>
-          <h2>3. Configure Preprocessing Parameters</h2>
-          <p>Confirm the detected date and target columns and choose strategy parameters. Defaults are pre-selected.</p>
+          <h2>Configure</h2>
         </div>
       </div>
 
       <form id="preprocessing-config-form">
+        <div class="recommendation-card"><strong>Recommended configuration</strong><div id="recommendation-summary"></div><small>Based on dataset characteristics. You can change these settings.</small></div>
+        <h3 class="section-label">Time series</h3>
         <div class="config-grid">
           <!-- Date Column -->
           <div class="form-group-custom">
@@ -269,7 +262,6 @@
               <span class="badge badge-teal" style="font-size: 0.65rem;">Auto</span>
             </label>
             <select id="cfg-date-col" required></select>
-            <span class="field-tooltip">Chronological index for period alignment and ordering.</span>
           </div>
 
           <!-- Target Column -->
@@ -279,7 +271,6 @@
               <span class="badge badge-teal" style="font-size: 0.65rem;">Suggested</span>
             </label>
             <select id="cfg-target-col" required></select>
-            <span class="field-tooltip">Continuous metric to forecast (e.g. Sales, Revenue, Demand).</span>
           </div>
 
           <!-- Frequency -->
@@ -293,7 +284,7 @@
               <option value="quarterly">Quarterly (Q)</option>
               <option value="yearly">Yearly (Y)</option>
             </select>
-            <span class="field-tooltip">Infers calendar interval from dates, or locks to fixed periods to fill gaps.</span>
+            <small id="frequency-status" class="setting-status">Frequency is detected from dates</small>
           </div>
 
           <!-- Duplicate Timestamps -->
@@ -306,19 +297,24 @@
               <option value="min">Min</option>
               <option value="first">First</option>
             </select>
-            <span class="field-tooltip">Aggregation for rows sharing identical dates (Sum for volume, Mean for rates).</span>
+            <small id="aggregation-status" class="setting-status">Recommended for volume targets</small>
           </div>
+        </div>
+        <h3 class="section-label">Data quality</h3>
+        <div class="config-grid quality-config">
+          <div class="form-group-custom"><label>Missing Value Handling</label><div class="readonly-setting">Automatic</div></div>
 
           <!-- Outlier Action -->
           <div class="form-group-custom">
             <label for="cfg-outlier-action">Outlier Action</label>
             <select id="cfg-outlier-action">
-              <option value="cap" selected>Cap (recommended)</option>
-              <option value="flag">Flag only</option>
+              <option value="flag" selected>Flag unusual values</option>
+              <option value="cap">Cap values</option>
               <option value="none">Leave as is</option>
             </select>
-            <span class="field-tooltip">Winsorizes extreme spikes to statistical bounds without deleting rows.</span>
           </div>
+        </div>
+        <details class="advanced-options"><summary>Advanced preprocessing options</summary><div class="config-grid">
 
           <!-- Outlier Method -->
           <div class="form-group-custom">
@@ -327,23 +323,21 @@
               <option value="iqr" selected>IQR (recommended)</option>
               <option value="zscore">Z-Score</option>
             </select>
-            <span class="field-tooltip">IQR uses 1.5x interquartile range; Z-Score uses 3.0 standard deviations.</span>
           </div>
 
           <!-- Missing Values Drop Threshold -->
           <div class="form-group-custom">
             <label for="cfg-missing-threshold">Drop Missing (%)</label>
             <input type="number" id="cfg-missing-threshold" min="20" max="99" value="60">
-            <span class="field-tooltip">Columns with missing values exceeding this threshold will be dropped (default 60%).</span>
           </div>
 
           <!-- Missing Imputation Rule -->
           <div class="form-group-custom">
-            <label>Imputation Strategy</label>
-            <input type="text" value="Linear Interpolation" disabled style="background: var(--color-bg-base); cursor: not-allowed;">
-            <span class="field-tooltip">Target uses time-series linear interpolation; numeric uses median, text uses mode.</span>
+            <label for="cfg-imputation-strategy">Target Imputation</label>
+            <select id="cfg-imputation-strategy"><option value="linear" selected>Linear interpolation</option><option value="forward_fill">Forward fill</option></select>
+            <small class="setting-status" id="imputation-status">Numeric: median · text: mode</small>
           </div>
-        </div>
+        </div></details>
 
         <div class="step-actions">
           <button type="button" class="btn-secondary-agent" id="btn-back-to-step-2">&larr; Back to Profile</button>
@@ -361,25 +355,25 @@
       <!-- Running State Spinner & Progress -->
       <div id="results-running-state" class="running-card" style="display: none;">
         <div class="spinner-agent"></div>
-        <h3 style="color: var(--color-primary); margin-bottom: 8px;">Processing Dataset...</h3>
-        <p style="color: var(--color-text-muted); font-size: 0.9rem;" id="running-step-text">Standardizing types, aligning timestamps, and evaluating forecast readiness...</p>
+        <h3>Processing dataset</h3>
+        <ol class="processing-steps" id="processing-steps"><li>Loading dataset</li><li>Profiling data</li><li>Cleaning data</li><li>Validating time series</li><li>Generating report</li></ol>
+        <p id="running-step-text" class="sr-only">Processing your dataset</p>
       </div>
 
       <!-- Completed State Content -->
       <div id="results-completed-state" style="display: none;">
         <div class="step-panel-header">
           <div>
-            <h2>4. Transformation Results & Explainable Audit</h2>
-            <p>Review quality score improvements, forecast readiness validation, and the step-by-step audit dossier.</p>
+            <h2>Processing complete</h2>
           </div>
           <div>
-            <button class="btn-primary-agent" id="btn-download-cleaned">
+            <button class="btn-secondary-agent" id="btn-download-cleaned">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               Download Cleaned CSV
             </button>
+            <a class="btn-secondary-agent" id="btn-download-report" href="#">Download report</a>
           </div>
         </div>
-
         <!-- Before & After Score Hero Cards -->
         <div class="results-hero-grid">
           <div class="score-hero-card score-hero-quality">
@@ -406,9 +400,19 @@
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#1a2332" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
           </div>
         </div>
+        <div class="result-extra-scores">
+          <div class="metric-card"><span class="metric-card-label">Forecastability</span><strong id="res-forecastability">-</strong><small id="res-forecastability-detail"></small></div>
+          <div class="metric-card"><span class="metric-card-label">Processing confidence</span><strong id="res-confidence">-</strong><small id="res-confidence-detail"></small></div>
+        </div>
+        <div id="forecast-status" class="forecast-status"></div>
+        <div id="quality-dimensions" class="quality-dimensions"></div>
+
+        <div class="insight-section"><h3>Dataset transformation</h3><div class="comparison-grid" id="comparison-grid"></div><details class="quiet-details"><summary>View unusual values</summary><div class="table-responsive-wrapper"><table class="table-custom"><thead><tr><th>Date</th><th>Original value</th><th>Expected range</th><th>Status</th><th>Action</th></tr></thead><tbody id="outlier-details"></tbody></table></div></details></div>
+        <div class="insight-section"><h3>Time series health</h3><div class="health-grid" id="health-grid"></div><details class="quiet-details"><summary>View coverage details</summary><div id="coverage-details"></div></details></div>
+        <div class="insight-section"><h3>Forecastability</h3><div class="health-grid" id="forecastability-grid"></div><details class="quiet-details"><summary>View calculation</summary><pre id="forecastability-details"></pre></details></div>
 
         <!-- Before / After Summary Metrics -->
-        <div class="metrics-grid">
+        <details class="quiet-details"><summary>Dataset details</summary><div class="metrics-grid">
           <div class="metric-card">
             <span class="metric-card-label">Rows (Before &rarr; After)</span>
             <span class="metric-card-value" id="summary-rows" style="font-size: 1.25rem;">-</span>
@@ -425,20 +429,19 @@
             <span class="metric-card-label">Cleaned Target Column</span>
             <span class="metric-card-value" id="summary-target" style="font-size: 1.25rem;">-</span>
           </div>
-        </div>
+        </div></details>
 
         <!-- Forecast Readiness Checklist -->
-        <div style="margin-bottom: 28px;">
-          <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--color-primary); margin-bottom: 12px;">Forecast Readiness Evaluation Checklist</h3>
+        <details class="quiet-details" style="margin-bottom: 28px;"><summary>View forecast readiness checks and quality calculation</summary><pre id="quality-calculation"></pre>
           <div class="readiness-list" id="readiness-checklist-container">
             <!-- Populated dynamically -->
           </div>
-        </div>
+        </details>
 
         <!-- Visualization Chart: Target Series Trend -->
         <div class="chart-card">
           <div class="chart-header">
-            <h3>Target Time-Series Distribution (Cleaned Trend)</h3>
+            <h3>Raw vs cleaned target</h3>
             <span class="badge badge-teal" id="chart-target-badge">Cleaned Continuous Signal</span>
           </div>
           <div class="chart-wrapper">
@@ -447,20 +450,18 @@
         </div>
 
         <!-- Explainable Audit Log Timeline -->
-        <div style="margin-bottom: 28px;">
-          <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--color-primary); margin-bottom: 4px;">Explainability Audit Log</h3>
-          <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-bottom: 16px;">Transparent record of all transformations, imputations, and alignments applied by the agent.</p>
+        <div class="insight-section"><h3>Processing actions</h3><div id="processing-summary" class="health-grid"></div><details class="quiet-details"><summary>View full audit log</summary>
           
           <div class="audit-timeline" id="audit-timeline-container">
             <!-- Populated dynamically -->
-          </div>
+          </div></details>
         </div>
 
         <!-- Cleaned Data Preview Table -->
         <div style="margin-bottom: 28px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--color-primary); margin: 0;">Cleaned Dataset Preview (First 50 Rows)</h3>
-            <span class="badge badge-navy" id="preview-row-count-badge">50 Rows Shown</span>
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--color-primary); margin: 0;">Cleaned data preview</h3>
+            <span class="badge badge-navy" id="preview-row-count-badge">20 Rows Shown</span>
           </div>
           <div class="table-responsive-wrapper">
             <table class="table-custom" id="cleaned-preview-table">
@@ -468,11 +469,12 @@
               <tbody id="cleaned-preview-tbody"></tbody>
             </table>
           </div>
+          <a id="btn-view-full-dataset" class="text-action" href="#">View full dataset via CSV</a>
         </div>
 
         <div class="step-actions">
           <button class="btn-secondary-agent" id="btn-process-another">&larr; Process Another Dataset</button>
-          <a href="/dashboard.html" class="btn-primary-agent">Return to Dashboard &rarr;</a>
+          <a href="/agents/forecasting.html" id="btn-continue-forecasting" class="btn-primary-agent">Continue to Forecasting &rarr;</a>
         </div>
       </div>
     </section>

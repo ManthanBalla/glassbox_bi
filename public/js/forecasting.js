@@ -142,6 +142,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       availableDatasets = res.datasets;
+      const requestedDatasetId = new URLSearchParams(window.location.search).get('dataset');
+      const preferredIndex = Math.max(0, availableDatasets.findIndex(ds => String(ds.id) === requestedDatasetId));
       emptyState.style.display = 'none';
       tableContainer.style.display = 'block';
       tbody.innerHTML = '';
@@ -150,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
 
-        const isFirst = idx === 0;
+        const isFirst = idx === preferredIndex;
         if (isFirst) selectedDataset = ds;
 
         const dateStr = ds.created_at ? new Date(ds.created_at).toLocaleDateString() : '-';

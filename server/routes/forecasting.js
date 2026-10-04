@@ -89,6 +89,15 @@ async function getOwnedProcessedDataset(processedDatasetId, userId) {
   return { dataset: record, absolutePath };
 }
 
+function readHandoffJson(directory, filename) {
+  try {
+    const file = path.join(directory, filename);
+    return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+  } catch (_) {
+    return {};
+  }
+}
+
 // -------------------------------------------------------------
 // 1. LIST COMPLETED PROCESSED DATASETS FOR FORECASTING
 // -------------------------------------------------------------
@@ -256,7 +265,10 @@ router.post('/run', authenticateToken, runForecastLimiter, async (req, res) => {
           holdout_percent: holdoutPercent,
           confidence_levels: confidenceLevels,
           output_dir: outputDir,
-          models_dir: modelsDir
+          models_dir: modelsDir,
+          evaluation_file_path: fs.existsSync(path.join(path.dirname(absolutePath), 'evaluation_source.csv')) ? path.join(path.dirname(absolutePath), 'evaluation_source.csv') : null,
+          preprocessing_recipe: readHandoffJson(path.dirname(absolutePath), 'report.json').transformation_recipe || null,
+          preprocessing_contract: readHandoffJson(path.dirname(absolutePath), 'data_contract.json')
         });
 
         if (!result.success) {

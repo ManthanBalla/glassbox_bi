@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedDataset = null;
   let activeSheetName = null;
   let activeProfile = null;
+  const profileCache = new Map();
+  const profileRequests = new Map();
   let currentJobId = null;
   let pollingInterval = null;
   let chartInstance = null;
@@ -50,6 +52,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function hideAlert() {
     if (alertBanner) alertBanner.style.display = 'none';
+  }
+
+  function renderProcessingStage(stage) {
+    const order = ['loading', 'profiling', 'cleaning', 'validating', 'reporting'];
+    const current = stage === 'complete' ? order.length : Math.max(0, order.indexOf(stage));
+    document.querySelectorAll('#processing-steps li').forEach((item, index) => {
+      item.classList.toggle('done', index < current);
+      item.classList.toggle('current', index === current);
+    });
+  }
+
+  function showProcessingError(error) {
+    const technical = String(error || 'Unknown processing error');
+    const targetProblem = /target|numeric/i.test(technical);
+    const dateProblem = /date|timestamp/i.test(technical);
+    const reason = targetProblem ? 'The selected target has no usable numeric values or could not be processed.' : dateProblem ? 'The selected date column contains invalid or incompatible dates.' : 'The dataset could not be processed with the current settings.';
+    const fix = targetProblem ? 'Choose another target column or correct its values.' : dateProblem ? 'Check the date column and frequency, then try again.' : 'Review the selected columns and file, then try again.';
+    alertBanner.replaceChildren();
+    const heading = document.createElement('strong'); heading.textContent = 'Unable to process this dataset.';
+    const body = document.createElement('p'); body.textContent = `${reason} ${fix}`;
+    const details = document.createElement('details'); details.innerHTML = '<summary>Technical details</summary>';
+    const technicalText = document.createElement('pre'); technicalText.textContent = technical;
+    details.appendChild(technicalText);
+    alertBanner.append(heading, body, details);
+    alertBanner.className = 'alert alert-error'; alertBanner.style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // Helper: Switch Stepper
@@ -158,12 +186,14 @@ document.addEventListener('DOMContentLoaded', () => {
             <input type="radio" name="selected_dataset" value="${ds.id}" id="ds_radio_${ds.id}" ${index === 0 ? 'checked' : ''}>
           </td>
           <td style="font-weight: 600; color: var(--color-primary);">
-            <label for="ds_radio_${ds.id}" style="cursor: pointer;">${ds.file_name}</label>
+            <label for="ds_radio_${ds.id}" style="cursor: pointer;"></label>
+            <small class="dataset-counts" data-dataset-id="${ds.id}">Rows and columns loading...</small>
           </td>
           <td><span class="badge badge-teal">${ds.file_type.toUpperCase()}</span></td>
           <td style="color: var(--color-text-muted); font-family: var(--font-family-mono); font-size: 0.8rem;">${formattedSize}</td>
           <td style="color: var(--color-text-muted);">${uploadDate}</td>
         `;
+        tr.querySelector('label').textContent = ds.file_name;
 
         tr.addEventListener('click', (e) => {
           if (e.target.tagName !== 'INPUT') {
@@ -204,7 +234,44 @@ document.addEventListener('DOMContentLoaded', () => {
       if (sheetGroup) sheetGroup.style.display = 'none';
       activeSheetName = null;
     }
+    previewDataset(dataset, null).catch(err => {
+      const label = document.querySelector(`.dataset-counts[data-dataset-id="${dataset.id}"]`);
+      if (label) label.textContent = 'Counts available after inspection';
+      console.warn('Dataset preview:', err);
+    });
   }
+
+  async function previewDataset(dataset, sheet) {
+    const key = `${dataset.id}:${sheet || ''}`;
+    if (profileCache.has(key)) return profileCache.get(key);
+    if (profileRequests.has(key)) return profileRequests.get(key);
+    const request = api.post('/api/agents/preprocessing/profile', { datasetId: dataset.id, sheet: sheet || undefined });
+    profileRequests.set(key, request);
+    try {
+      const result = await request;
+      if (!result.success) throw new Error(result.message || 'Could not inspect dataset');
+      profileCache.set(key, result);
+      const label = document.querySelector(`.dataset-counts[data-dataset-id="${dataset.id}"]`);
+      if (label) label.textContent = `${result.profile.total_rows.toLocaleString()} rows · ${result.profile.total_columns.toLocaleString()} columns`;
+      if (selectedDataset?.id === dataset.id && !sheet && result.sheets?.length) {
+        const sheetSelect = document.getElementById('excel-sheet-select');
+        sheetSelect.replaceChildren();
+        result.sheets.forEach(name => { const option = document.createElement('option'); option.value = name; option.textContent = name; sheetSelect.appendChild(option); });
+        activeSheetName = sheetSelect.value;
+        profileCache.set(`${dataset.id}:${activeSheetName}`, result);
+      }
+      return result;
+    } finally {
+      profileRequests.delete(key);
+    }
+  }
+
+  document.getElementById('excel-sheet-select')?.addEventListener('change', async event => {
+    if (!selectedDataset) return;
+    activeSheetName = event.target.value;
+    try { await previewDataset(selectedDataset, activeSheetName); }
+    catch (err) { showAlert('Could not inspect sheet: ' + err.message); }
+  });
 
   // -------------------------------------------------------------
   // 3. STEP 2: PROFILE DATASET
@@ -222,10 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sheetSelect = document.getElementById('excel-sheet-select');
         activeSheetName = sheetSelect ? sheetSelect.value : null;
 
-        const res = await api.post('/api/agents/preprocessing/profile', {
-          datasetId: selectedDataset.id,
-          sheet: activeSheetName || undefined
-        });
+        const res = await previewDataset(selectedDataset, activeSheetName);
 
         if (!res.success) {
           throw new Error(res.message || 'Profiling failed');
@@ -238,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showAlert('Profiling Error: ' + err.message);
       } finally {
         btnToStep2.disabled = false;
-        btnToStep2.innerHTML = 'Inspect & Profile Dataset &rarr;';
+        btnToStep2.innerHTML = 'Continue &rarr;';
       }
     });
   }
@@ -247,6 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const prof = data.profile || {};
     document.getElementById('prof-rows').textContent = (prof.total_rows || 0).toLocaleString();
     document.getElementById('prof-cols').textContent = (prof.total_columns || 0).toLocaleString();
+    document.getElementById('prof-missing').textContent = `${prof.quality_breakdown?.missing_pct ?? 0}%`;
     document.getElementById('prof-dups').textContent = (prof.duplicate_rows || 0).toLocaleString();
     
     const qualityVal = prof.quality_score !== undefined ? prof.quality_score : 100;
@@ -255,6 +320,39 @@ document.addEventListener('DOMContentLoaded', () => {
     if (qualityVal >= 80) scoreElem.style.color = 'var(--color-accent)';
     else if (qualityVal >= 50) scoreElem.style.color = 'var(--color-warning)';
     else scoreElem.style.color = 'var(--color-error)';
+
+    const roles = data.role_analysis || {};
+    const roleCards = document.getElementById('detected-roles');
+    roleCards.replaceChildren();
+    [['Date', roles.date_candidates?.[0]], ['Target', roles.target_candidates?.[0]]].forEach(([label, candidate]) => {
+      const card = document.createElement('div');
+      card.className = 'role-card';
+      const confidence = candidate?.confidence ?? 0;
+      const level = confidence >= 75 ? 'High confidence' : confidence >= 50 ? 'Review suggested' : 'Review recommended';
+      const title = document.createElement('strong');
+      title.textContent = label;
+      const value = document.createElement('div');
+      value.textContent = candidate?.column || 'No clear candidate';
+      const detail = document.createElement('small');
+      detail.textContent = `${confidence}% · ${level}`;
+      const why = document.createElement('details');
+      why.innerHTML = '<summary>Why?</summary>';
+      const whyText = document.createElement('p');
+      whyText.textContent = (candidate?.reasons || ['No strong evidence found']).join(' · ');
+      why.appendChild(whyText);
+      card.append(title, value, detail, why);
+      roleCards.appendChild(card);
+    });
+    const dimensionBox = document.getElementById('detected-dimensions');
+    dimensionBox.replaceChildren();
+    (roles.business_dimensions || []).forEach(item => {
+      const chip = document.createElement('span');
+      chip.className = 'dimension-chip';
+      chip.textContent = `${item.column} · ${item.confidence}%`;
+      chip.title = (item.reasons || []).join(', ');
+      dimensionBox.appendChild(chip);
+    });
+    if (!dimensionBox.children.length) dimensionBox.textContent = 'None detected';
 
     // Column table
     const colTbody = document.getElementById('columns-profile-tbody');
@@ -266,13 +364,12 @@ document.addEventListener('DOMContentLoaded', () => {
         : '-';
       const missingBadgeClass = c.missing_pct > 20 ? 'badge-error' : (c.missing_pct > 0 ? 'badge-warning' : 'badge-teal');
 
+      const role = c.name === data.detected_date_column ? 'Date candidate' : c.name === data.suggested_target_column ? 'Target candidate' : (roles.business_dimensions || []).some(d => d.column === c.name) ? 'Dimension' : 'Feature';
       tr.innerHTML = `
         <td style="font-weight: 600; color: var(--color-primary);">${c.name}</td>
         <td><code>${c.dtype}</code></td>
-        <td>${c.missing_count}</td>
         <td><span class="badge ${missingBadgeClass}" style="font-size: 0.72rem;">${c.missing_pct}%</span></td>
-        <td>${c.unique_count}</td>
-        <td style="font-size: 0.8rem; color: var(--color-text-muted); font-family: var(--font-family-mono);">${minMaxStr}</td>
+        <td>${role}</td>
       `;
       colTbody.appendChild(tr);
     });
@@ -323,6 +420,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const cols = data.standardized_columns || (data.profile.columns || []).map(c => c.name);
     const detectedDate = data.detected_date_column;
     const suggestedTarget = data.suggested_target_column;
+    if (!detectedDate) {
+      const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = 'Choose a date column'; placeholder.selected = true; placeholder.disabled = true; dateSelect.appendChild(placeholder);
+    }
+    if (!suggestedTarget) {
+      const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = 'Choose a target column'; placeholder.selected = true; placeholder.disabled = true; targetSelect.appendChild(placeholder);
+    }
 
     cols.forEach(col => {
       // Date option
@@ -348,8 +451,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (rc.outlier_action) document.getElementById('cfg-outlier-action').value = rc.outlier_action;
       if (rc.outlier_method) document.getElementById('cfg-outlier-method').value = rc.outlier_method;
       if (rc.missing_threshold) document.getElementById('cfg-missing-threshold').value = rc.missing_threshold;
+      if (rc.imputation_strategy) document.getElementById('cfg-imputation-strategy').value = rc.imputation_strategy;
+      document.getElementById('recommendation-summary').textContent = `Date: ${data.detected_date_column || 'review needed'} · Target: ${data.suggested_target_column || 'review needed'} · Frequency: auto · Aggregation: ${rc.duplicate_aggregation} · Missing: automatic · Outliers: flag`;
+      document.getElementById('frequency-status').textContent = 'Frequency will be inferred from the date sequence';
+      document.getElementById('aggregation-status').textContent = `Recommended for ${rc.target_column}`;
     }
   }
+
+  document.getElementById('cfg-imputation-strategy')?.addEventListener('change', event => {
+    document.getElementById('imputation-status').textContent = `${event.target.value === 'forward_fill' ? 'Use latest observed target' : 'Interpolate target'} · Numeric: median · text: mode`;
+  });
 
   // Step navigation buttons
   document.getElementById('btn-back-to-step-1')?.addEventListener('click', () => goToStep(1));
@@ -375,6 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const outlierAction = document.getElementById('cfg-outlier-action').value;
       const outlierMethod = document.getElementById('cfg-outlier-method').value;
       const missingThreshold = parseFloat(document.getElementById('cfg-missing-threshold').value) || 60;
+      const imputationStrategy = document.getElementById('cfg-imputation-strategy').value;
 
       const configPayload = {
         date_column: dateCol,
@@ -384,10 +496,12 @@ document.addEventListener('DOMContentLoaded', () => {
         outlier_action: outlierAction,
         outlier_method: outlierMethod,
         missing_threshold: missingThreshold,
+        imputation_strategy: imputationStrategy,
         sheet_name: activeSheetName || undefined
       };
 
       goToStep(4);
+      renderProcessingStage('loading');
       document.getElementById('results-running-state').style.display = 'block';
       document.getElementById('results-completed-state').style.display = 'none';
 
@@ -405,7 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
         startJobPolling(currentJobId);
       } catch (err) {
         document.getElementById('results-running-state').style.display = 'none';
-        showAlert('Job Dispatch Failed: ' + err.message);
+        showProcessingError(err.message);
       }
     });
   }
@@ -422,13 +536,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!statusRes.success || !statusRes.job) return;
 
         const job = statusRes.job;
+        renderProcessingStage(job.progress_stage || 'loading');
         if (job.status === 'completed') {
           clearInterval(pollingInterval);
           loadJobReport(jobId);
         } else if (job.status === 'failed') {
           clearInterval(pollingInterval);
           document.getElementById('results-running-state').style.display = 'none';
-          showAlert(`Preprocessing Job Failed: ${job.error_message || 'An error occurred during pipeline execution.'}`);
+          showProcessingError(job.error_message);
         }
       } catch (err) {
         console.warn('Job polling warning:', err);
@@ -505,8 +620,73 @@ document.addEventListener('DOMContentLoaded', () => {
       checklistContainer.appendChild(itemDiv);
     });
 
+    const forecastability = data.forecastability || {};
+    const confidence = data.processing_confidence || {};
+    const health = data.time_health || {};
+    const comparison = data.comparison || {};
+    document.getElementById('res-forecastability').textContent = `${forecastability.score ?? '-'} / 100`;
+    document.getElementById('res-forecastability-detail').textContent = `${forecastability.trend || 'Unknown'} trend · ${forecastability.seasonality || 'Unknown'} seasonality`;
+    document.getElementById('res-confidence').textContent = confidence.level || 'Unknown';
+    document.getElementById('res-confidence-detail').textContent = (confidence.reasons || []).join(' · ');
+    const qualityDimensions = document.getElementById('quality-dimensions');
+    qualityDimensions.replaceChildren();
+    Object.entries(data.quality_dimensions || {}).forEach(([name, score]) => {
+      const row = document.createElement('div'); row.className = 'quality-dimension';
+      const label = document.createElement('span'); label.textContent = `${name[0].toUpperCase()}${name.slice(1)}  ${score}/100`;
+      const bar = document.createElement('progress'); bar.max = 100; bar.value = score;
+      row.append(label, bar); qualityDimensions.appendChild(row);
+    });
+    const forecastStatus = document.getElementById('forecast-status');
+    forecastStatus.textContent = rStatus === 'READY' ? 'Ready for forecasting' : rStatus === 'WARN' ? 'Forecasting needs review' : 'Not ready for forecasting';
+    forecastStatus.className = `forecast-status forecast-status-${rStatus.toLowerCase()}`;
+    const compareBox = document.getElementById('comparison-grid');
+    compareBox.replaceChildren();
+    [['Rows', comparison.rows], ['Missing values', comparison.missing_values], ['Duplicates', comparison.duplicates], ['Invalid dates', comparison.invalid_dates]].forEach(([label, values]) => {
+      const item = document.createElement('div');
+      item.className = 'comparison-item';
+      item.textContent = `${label}: ${values?.before ?? '-'} → ${values?.after ?? '-'}`;
+      compareBox.appendChild(item);
+    });
+    const outlierItem = document.createElement('div');
+    outlierItem.className = 'comparison-item';
+    outlierItem.textContent = `Outliers: ${comparison.outliers?.detected ?? 0} detected · ${comparison.outliers?.flagged ?? 0} flagged, values retained`;
+    compareBox.appendChild(outlierItem);
+    const outlierBody = document.getElementById('outlier-details');
+    outlierBody.replaceChildren();
+    (data.outlier_events || []).slice(0, 100).forEach(event => {
+      const row = document.createElement('tr');
+      [event.date, event.value, (event.expected_range || []).join(' – '), event.severity, event.action].forEach(value => {
+        const cell = document.createElement('td'); cell.textContent = value ?? '-'; row.appendChild(cell);
+      });
+      outlierBody.appendChild(row);
+    });
+    if (!outlierBody.children.length) {
+      const row = document.createElement('tr'); const cell = document.createElement('td'); cell.colSpan = 5; cell.textContent = 'No unusual target values detected.'; row.appendChild(cell); outlierBody.appendChild(row);
+    }
+    const healthBox = document.getElementById('health-grid');
+    healthBox.replaceChildren();
+    [`${health.invalid_dates ?? 0} invalid dates`, `${health.duplicate_dates ?? 0} duplicate dates`, `${health.missing_periods ?? 0} periods filled`, `Frequency: ${dataset.frequency || '-'}`, health.target_constant ? 'Target is constant' : 'Target varies', health.sufficient_history ? 'Sufficient history' : 'Short history'].forEach(value => {
+      const item = document.createElement('span'); item.className = 'insight-chip'; item.textContent = value; healthBox.appendChild(item);
+    });
+    document.getElementById('coverage-details').textContent = `${health.date_start || '-'} → ${health.date_end || '-'} · Expected: ${health.expected_observations ?? '-'} · Observed: ${health.observed_observations ?? '-'} · Largest gap: ${health.largest_gap ?? 0} periods · Longest continuous run: ${health.longest_continuous_run ?? 0}`;
+    const forecastBox = document.getElementById('forecastability-grid');
+    forecastBox.replaceChildren();
+    [`Trend: ${forecastability.trend || '-'}`, `Seasonality: ${forecastability.seasonality || '-'}`, `Variation: ${forecastability.variation || '-'}`, `History: ${forecastability.history ?? '-'} rows`, `Autocorrelation: ${forecastability.autocorrelation || '-'}`].forEach(value => {
+      const item = document.createElement('span'); item.className = 'insight-chip'; item.textContent = value; forecastBox.appendChild(item);
+    });
+    document.getElementById('forecastability-details').textContent = JSON.stringify(forecastability.details || {}, null, 2);
+    document.getElementById('quality-calculation').textContent = JSON.stringify(data.quality_breakdown || {}, null, 2);
+    const summaryBox = document.getElementById('processing-summary');
+    summaryBox.replaceChildren();
+    [...new Set(auditLog.map(action => action.step_name))].filter(Boolean).slice(0, 6).forEach(name => {
+      const item = document.createElement('span'); item.className = 'insight-chip'; item.textContent = `✓ ${name.replaceAll('_', ' ').toLowerCase()}`; summaryBox.appendChild(item);
+    });
+    document.getElementById('btn-download-report').href = `/api/agents/preprocessing/jobs/${data.job.id}/report/download`;
+    document.getElementById('btn-view-full-dataset').href = `/api/agents/preprocessing/jobs/${data.job.id}/download`;
+    if (dataset.id) document.getElementById('btn-continue-forecasting').href = `/agents/forecasting.html?dataset=${encodeURIComponent(dataset.id)}`;
+
     // Chart.js Visualization
-    renderTimeSeriesChart(sampleData, dataset.date_column, dataset.target_column);
+    renderTimeSeriesChart(data.chart_cleaned?.length ? data.chart_cleaned : sampleData, dataset.date_column, dataset.target_column, data.raw_chart || [], data.time_health?.missing_dates || [], data.outlier_events || []);
 
     // Audit Log Timeline
     const timelineContainer = document.getElementById('audit-timeline-container');
@@ -518,13 +698,19 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="audit-marker"></div>
         <div class="audit-card">
           <div class="audit-header">
-            <span class="step-chip">${action.step_name}</span>
-            <span class="col-chip">${action.column_name}</span>
-            <span class="rows-chip">${action.rows_affected} affected</span>
+            <span class="step-chip"></span>
+            <span class="col-chip"></span>
+            <span class="rows-chip"></span>
           </div>
-          <p class="audit-desc">${action.description}</p>
+          <p class="audit-desc"></p>
+          <small class="audit-meta"></small>
         </div>
       `;
+      entryDiv.querySelector('.step-chip').textContent = action.step_name || '-';
+      entryDiv.querySelector('.col-chip').textContent = action.column_name || '-';
+      entryDiv.querySelector('.rows-chip').textContent = `${action.rows_affected ?? 0} affected`;
+      entryDiv.querySelector('.audit-desc').textContent = action.description || '';
+      entryDiv.querySelector('.audit-meta').textContent = `Method: ${action.method || '-'} · Reason: ${action.reason || action.description || '-'}${action.before !== null && action.before !== undefined ? ` · Before: ${action.before}` : ''}${action.after !== null && action.after !== undefined ? ` · After: ${action.after}` : ''}`;
       timelineContainer.appendChild(entryDiv);
     });
 
@@ -548,7 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       previewThead.appendChild(trHeader);
 
-      sampleData.forEach(row => {
+      sampleData.slice(0, 20).forEach(row => {
         const tr = document.createElement('tr');
         headers.forEach(h => {
           const td = document.createElement('td');
@@ -569,7 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Chart Rendering
-  function renderTimeSeriesChart(sampleData, dateCol, targetCol) {
+  function renderTimeSeriesChart(sampleData, dateCol, targetCol, rawChart = [], missingDates = [], outlierEvents = []) {
     const canvas = document.getElementById('targetTimeSeriesChart');
     if (!canvas || !sampleData || sampleData.length === 0) return;
 
@@ -577,15 +763,21 @@ document.addEventListener('DOMContentLoaded', () => {
       chartInstance.destroy();
     }
 
-    const labels = sampleData.map(r => r[dateCol] || '');
-    const values = sampleData.map(r => r[targetCol] !== null ? r[targetCol] : null);
+    const labels = sampleData.map(r => r.date || r[dateCol] || '');
+    const values = sampleData.map(r => r.value ?? r[targetCol] ?? null);
+    const rawByDate = new Map(rawChart.map(point => [String(point.date).slice(0, 10), point.value]));
+    const rawValues = labels.map(label => rawByDate.get(String(label).slice(0, 10)) ?? null);
+    const missingSet = new Set(missingDates);
+    const outlierSet = new Set(outlierEvents.map(point => String(point.date).slice(0, 10)));
+    const filledValues = labels.map((label, index) => missingSet.has(String(label).slice(0, 10)) ? values[index] : null);
+    const outlierValues = labels.map((label, index) => outlierSet.has(String(label).slice(0, 10)) ? values[index] : null);
 
     const ctx = canvas.getContext('2d');
     chartInstance = new Chart(ctx, {
       type: 'line',
       data: {
         labels: labels,
-        datasets: [{
+        datasets: [{ label: 'Raw target', data: rawValues, borderColor: '#94a3b8', borderWidth: 1.5, pointRadius: 1, tension: 0.1, fill: false }, {
           label: `Cleaned Target: ${targetCol}`,
           data: values,
           borderColor: '#0d9488',
@@ -595,7 +787,7 @@ document.addEventListener('DOMContentLoaded', () => {
           pointHoverRadius: 5,
           tension: 0.15,
           fill: true
-        }]
+        }, { label: 'Filled periods', data: filledValues, showLine: false, pointRadius: 4, backgroundColor: '#0284c7' }, { label: 'Flagged outliers', data: outlierValues, showLine: false, pointRadius: 4, backgroundColor: '#d97706' }]
       },
       options: {
         responsive: true,

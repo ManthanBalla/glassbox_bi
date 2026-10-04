@@ -66,8 +66,8 @@ def get_sheets(req: SheetsRequest):
     ext = os.path.splitext(req.file_path)[1].lower()
     if ext in ['.xlsx', '.xls']:
         try:
-            excel = pd.ExcelFile(req.file_path, engine='openpyxl' if ext == '.xlsx' else None)
-            return {"is_excel": True, "sheets": excel.sheet_names}
+            with pd.ExcelFile(req.file_path, engine='openpyxl' if ext == '.xlsx' else None) as excel:
+                return {"is_excel": True, "sheets": excel.sheet_names}
         except Exception as e:
             logger.error(f"Error reading Excel sheets: {e}")
             raise HTTPException(status_code=400, detail=f"Failed to inspect Excel workbook: {str(e)}")
@@ -100,9 +100,10 @@ def profile_dataset(req: ProfileRequest):
             "frequency": "auto",
             "duplicate_aggregation": "sum",
             "missing_strategy": "interpolate_target_median_num",
+            "imputation_strategy": "linear",
             "missing_threshold": 60.0,
             "outlier_method": "iqr",
-            "outlier_action": "cap"
+            "outlier_action": "flag"
         }
 
         return {
@@ -112,7 +113,8 @@ def profile_dataset(req: ProfileRequest):
             "suggested_target_column": suggested_target,
             "standardized_columns": list(df_std.columns),
             "numeric_columns": all_numeric_cols,
-            "recommended_config": recommended_config
+            "recommended_config": recommended_config,
+            "role_analysis": pipeline.role_analysis
         }
     except Exception as e:
         logger.error(f"Profile error: {e}", exc_info=True)

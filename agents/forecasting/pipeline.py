@@ -45,7 +45,10 @@ class ForecastingPipeline:
         holdout_percent: float = 0.20,
         confidence_levels: Optional[List[float]] = None,
         output_dir: Optional[str] = None,
-        models_dir: Optional[str] = None
+        models_dir: Optional[str] = None,
+        evaluation_file_path: Optional[str] = None,
+        preprocessing_recipe: Optional[Dict[str, Any]] = None,
+        preprocessing_contract: Optional[Dict[str, Any]] = None
     ):
         self.file_path = os.path.abspath(file_path)
         self.date_column = date_column
@@ -74,6 +77,10 @@ class ForecastingPipeline:
         # Directory destinations
         self.output_dir = os.path.abspath(output_dir) if output_dir else os.path.abspath(os.path.join("forecasts", self.user_id, self.job_id))
         self.models_dir = os.path.abspath(models_dir) if models_dir else os.path.abspath(os.path.join("models", self.user_id, self.job_id))
+        self.evaluation_file_path = evaluation_file_path
+        self.preprocessing_recipe = preprocessing_recipe or {}
+        self.preprocessing_contract = preprocessing_contract or {}
+        self.evaluation_note = "Legacy processed dataset used for evaluation. Historical preprocessing may have used future holdout information."
 
         # Runtime State
         self.df: Optional[pd.DataFrame] = None
@@ -323,6 +330,10 @@ class ForecastingPipeline:
                 "reason": f"Eligible: decomposing series into dual curvature and trend lines with period m={m}."
             }
 
+        for model_name, decision in eligibility.items():
+            if model_name not in self.selected_models:
+                decision.update({"eligible": False, "status": "skipped", "reason": "Skipped: not selected for this forecasting run."})
+
         self.eligibility_results = eligibility
 
         for m_name, info in eligibility.items():
@@ -380,6 +391,31 @@ class ForecastingPipeline:
         self.train_df = df.iloc[:train_size].copy().reset_index(drop=True)
         self.holdout_df = df.iloc[train_size:].copy().reset_index(drop=True)
 
+        if self.evaluation_file_path and os.path.isfile(self.evaluation_file_path):
+            source = pd.read_csv(self.evaluation_file_path)
+            source[self.date_column] = pd.to_datetime(source[self.date_column], errors="coerce")
+            source[self.target_column] = pd.to_numeric(source[self.target_column], errors="coerce")
+            source = source.dropna(subset=[self.date_column]).drop_duplicates(subset=[self.date_column])
+            source = df[[self.date_column]].merge(source[[self.date_column, self.target_column]], on=self.date_column, how="left")
+            training_target = source[self.target_column].iloc[:train_size].copy()
+            if training_target.notna().sum() < 2:
+                raise ValueError("The training period has too few observed target values for forecasting.")
+            # Only the training slice contributes to fitted imputation and outlier bounds.
+            training_target = (training_target.ffill() if self.preprocessing_recipe.get("imputation_strategy") == "forward_fill" else training_target.interpolate(method="linear")).ffill().bfill()
+            if self.preprocessing_recipe.get("outlier_action") == "cap" and len(training_target) >= 10:
+                if self.preprocessing_recipe.get("outlier_method") == "zscore":
+                    center, spread = training_target.mean(), training_target.std()
+                    lower, upper = center - 3 * spread, center + 3 * spread
+                else:
+                    q1, q3 = training_target.quantile(.25), training_target.quantile(.75)
+                    lower, upper = q1 - 1.5 * (q3 - q1), q3 + 1.5 * (q3 - q1)
+                if pd.notna(lower) and pd.notna(upper) and lower < upper:
+                    training_target = training_target.clip(lower, upper)
+            self.train_df[self.target_column] = training_target.to_numpy()
+            self.holdout_df[self.target_column] = source[self.target_column].iloc[train_size:].to_numpy()
+            self.evaluation_note = "Holdout evaluation uses observed targets from evaluation_source.csv. Imputation and optional capping are fitted on training dates only; missing holdout targets are excluded from scoring."
+            self._log_action("EVALUATION_PREPROCESSING", "train_only", self.evaluation_note)
+
         train_start = str(self.train_df[self.date_column].iloc[0].date())
         train_end = str(self.train_df[self.date_column].iloc[-1].date())
         holdout_start = str(self.holdout_df[self.date_column].iloc[0].date())
@@ -402,6 +438,9 @@ class ForecastingPipeline:
         train_series = self.train_df[self.target_column]
         train_dates = self.train_df[self.date_column]
         holdout_actuals = np.asarray(self.holdout_df[self.target_column].values, dtype=float)
+        observed_mask = np.isfinite(holdout_actuals)
+        if not observed_mask.any():
+            raise ValueError("The holdout period has no observed target values for evaluation.")
         H = len(holdout_actuals)
         m = self.seasonal_period
         freq = self.frequency
@@ -449,8 +488,8 @@ class ForecastingPipeline:
 
                 # Evaluate metrics
                 metrics = evaluate_forecast(
-                    actual=holdout_actuals,
-                    predicted=preds,
+                    actual=holdout_actuals[observed_mask],
+                    predicted=preds[observed_mask],
                     train_series=train_series.values,
                     seasonal_period=m
                 )
@@ -686,6 +725,8 @@ class ForecastingPipeline:
             "ranking_metric": self.ranking_metric,
             "winner_model": self.winner_model_name,
             "warnings": self.warnings,
+            "evaluation_preprocessing": self.evaluation_note,
+            "preprocessing_contract": self.preprocessing_contract,
             "model_leaderboard": clean_model_results,
             "eligibility_decisions": self.eligibility_results,
             "features_engineered": self.step4_feature_engineering_info() if "LightGBM" in self.selected_models else [],
