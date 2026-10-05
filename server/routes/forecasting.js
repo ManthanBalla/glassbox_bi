@@ -117,7 +117,10 @@ router.get('/datasets', authenticateToken, async (req, res) => {
 
     return res.json({
       success: true,
-      datasets: queryRes.rows || []
+      datasets: (queryRes.rows || []).map(row => ({
+        ...row,
+        data_contract: readHandoffJson(path.dirname(path.isAbsolute(row.file_path) ? row.file_path : path.resolve(__dirname, '..', '..', row.file_path)), 'data_contract.json')
+      }))
     });
   } catch (err) {
     console.error('[Forecasting] Error listing datasets:', err);
@@ -157,6 +160,8 @@ router.post('/precheck', authenticateToken, async (req, res) => {
       target_column: dataset.target_column,
       frequency: dataset.frequency,
       readiness_score: dataset.readiness_score,
+      quality_score: dataset.quality_score_after,
+      data_contract: readHandoffJson(path.dirname(absolutePath), 'data_contract.json'),
       validation: precheckData.validation,
       suggested_horizon: precheckData.suggested_horizon,
       seasonal_period: precheckData.seasonal_period,
@@ -208,14 +213,20 @@ router.post('/run', authenticateToken, runForecastLimiter, async (req, res) => {
       'LightGBM',
       'Theta'
     ];
-    let selectedModels = Array.isArray(cfg.models) && cfg.models.length > 0 ? cfg.models : allowedModels;
-    selectedModels = selectedModels.filter(m => allowedModels.includes(m));
-    if (selectedModels.length === 0) {
-      selectedModels = allowedModels;
+    if (cfg.models !== undefined && !Array.isArray(cfg.models)) {
+      return res.status(400).json({ success: false, message: 'Models must be a list of candidate names.' });
     }
+    const selectedModels = [...new Set(['Seasonal Naive', ...(cfg.models === undefined ? allowedModels : cfg.models).filter(m => allowedModels.includes(m))])];
 
-    const holdoutPercent = Math.min(0.35, Math.max(0.10, parseFloat(cfg.holdoutPercent || '0.20')));
-    const confidenceLevels = Array.isArray(cfg.confidenceLevels) ? cfg.confidenceLevels : [0.80, 0.95];
+    const requestedHoldout = cfg.holdoutPercent === undefined ? 0.20 : Number(cfg.holdoutPercent);
+    if (!Number.isFinite(requestedHoldout) || requestedHoldout < 0.10 || requestedHoldout > 0.35) {
+      return res.status(400).json({ success: false, message: 'Holdout must be between 10% and 35%.' });
+    }
+    const holdoutPercent = requestedHoldout;
+    const confidenceLevels = cfg.confidenceLevels === undefined ? [0.80, 0.95] : cfg.confidenceLevels;
+    if (!Array.isArray(confidenceLevels) || confidenceLevels.length === 0 || confidenceLevels.some(v => v !== 0.80 && v !== 0.95)) {
+      return res.status(400).json({ success: false, message: 'Prediction bounds must be 80%, 95%, or both.' });
+    }
 
     // Create Job in Database
     const jobId = crypto.randomUUID();
@@ -364,9 +375,10 @@ router.post('/run', authenticateToken, runForecastLimiter, async (req, res) => {
            SET status = 'completed',
                winner_model = $1,
                selected_metric = $2,
+               horizon = $4,
                finished_at = CURRENT_TIMESTAMP
            WHERE id = $3`,
-          [result.winner_model, rankingMetric, jobId]
+          [result.winner_model, rankingMetric, jobId, result.horizon]
         );
 
         console.log(`[Forecasting] Job ${jobId} completed successfully. Winner: ${result.winner_model}`);
@@ -411,9 +423,11 @@ router.get('/jobs/:jobId', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Forecast job not found or access denied.' });
     }
 
+    const job = queryRes.rows[0];
+    const progress = readHandoffJson(path.join(FORECASTS_ROOT, String(req.user.id), job.id), 'progress.json');
     return res.json({
       success: true,
-      job: queryRes.rows[0]
+      job: { ...job, progress_stage: progress.stage || null }
     });
   } catch (err) {
     console.error('[Forecasting] Error querying job status:', err);
@@ -427,7 +441,8 @@ router.get('/jobs/:jobId', authenticateToken, async (req, res) => {
 router.get('/jobs/:jobId/report', authenticateToken, async (req, res) => {
   try {
     const jobRes = await db.query(
-      `SELECT fj.*, pd.date_column, pd.target_column, pd.frequency, ud.file_name AS source_file_name
+      `SELECT fj.*, pd.date_column, pd.target_column, pd.frequency,
+              pd.quality_score_after, pd.readiness_score, ud.file_name AS source_file_name
        FROM forecast_jobs fj
        JOIN processed_datasets pd ON fj.processed_dataset_id = pd.id
        JOIN uploaded_datasets ud ON pd.source_dataset_id = ud.id
@@ -469,7 +484,8 @@ router.get('/jobs/:jobId/report', authenticateToken, async (req, res) => {
       job,
       leaderboard: resultsRes.rows || [],
       audit_actions: actionsRes.rows || [],
-      disk_report: diskReport
+      disk_report: diskReport,
+      forecast_metadata: readHandoffJson(path.join(FORECASTS_ROOT, String(req.user.id), job.id), 'forecast_metadata.json')
     });
   } catch (err) {
     console.error('[Forecasting] Error retrieving job report:', err);
@@ -526,7 +542,7 @@ router.get('/jobs/:jobId/forecast', authenticateToken, async (req, res) => {
             if (cols.length > Math.max(dateIdx, targetIdx)) {
               history.push({
                 date: cols[dateIdx],
-                value: parseFloat(cols[targetIdx]) || 0.0
+                value: Number.isFinite(parseFloat(cols[targetIdx])) ? parseFloat(cols[targetIdx]) : null
               });
             }
           }
@@ -546,7 +562,7 @@ router.get('/jobs/:jobId/forecast', authenticateToken, async (req, res) => {
           const cols = hLines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
           const rowObj = {};
           hHeaders.forEach((h, idx) => {
-            rowObj[h] = idx === 0 ? cols[idx] : (parseFloat(cols[idx]) || null);
+            rowObj[h] = idx === 0 ? cols[idx] : (Number.isFinite(parseFloat(cols[idx])) ? parseFloat(cols[idx]) : null);
           });
           holdoutData.push(rowObj);
         }
@@ -602,6 +618,23 @@ router.get('/jobs/:jobId/download', authenticateToken, async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// Download the machine-readable report for an owned completed job.
+router.get('/jobs/:jobId/report/download', authenticateToken, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT id FROM forecast_jobs WHERE id = $1 AND user_id = $2 AND status = 'completed'`,
+      [req.params.jobId, req.user.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Completed forecast job not found.' });
+    const reportPath = path.join(FORECASTS_ROOT, String(req.user.id), result.rows[0].id, 'report.json');
+    if (!fs.existsSync(reportPath)) return res.status(404).json({ success: false, message: 'Forecast report is missing.' });
+    return res.download(reportPath, `forecast_report_${String(result.rows[0].id).slice(0, 8)}.json`);
+  } catch (err) {
+    console.error('[Forecasting] Error downloading report:', err);
+    return res.status(500).json({ success: false, message: 'Failed to download forecast report.' });
+  }
+});
+
 // 8. LIST USER'S FORECAST JOBS HISTORY
 // -------------------------------------------------------------
 router.get('/jobs', authenticateToken, async (req, res) => {

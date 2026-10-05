@@ -69,10 +69,14 @@ class ForecastingPipeline:
         self.user_id = str(user_id)
         self.job_id = str(job_id)
         self.horizon = int(horizon)
-        self.selected_models = selected_models or ["Seasonal Naive", "ETS (Exponential Smoothing)", "ARIMA / SARIMA", "Prophet", "LightGBM", "Theta"]
+        default_models = ["Seasonal Naive", "ETS (Exponential Smoothing)", "ARIMA / SARIMA", "Prophet", "LightGBM", "Theta"]
+        self.selected_models = list(dict.fromkeys(["Seasonal Naive"] + (default_models if selected_models is None else selected_models)))
         self.ranking_metric = ranking_metric.lower()
         self.holdout_percent = float(holdout_percent)
-        self.confidence_levels = confidence_levels or [0.80, 0.95]
+        self.confidence_levels = sorted(set(confidence_levels if confidence_levels is not None else [0.80, 0.95]))
+        if not self.confidence_levels or any(level not in (0.80, 0.95) for level in self.confidence_levels):
+            raise ValueError("Prediction bounds must include 80%, 95%, or both.")
+        self.requested_horizon = self.horizon
 
         # Directory destinations
         self.output_dir = os.path.abspath(output_dir) if output_dir else os.path.abspath(os.path.join("forecasts", self.user_id, self.job_id))
@@ -97,6 +101,7 @@ class ForecastingPipeline:
         self.winner_model_obj: Optional[BaseModelWrapper] = None
         self.future_forecast_df: Optional[pd.DataFrame] = None
         self.warnings: List[str] = []
+        self.features_engineered: List[str] = []
 
     def _log_action(self, step_name: str, action: str, description: str, model_name: Optional[str] = None):
         self.step_counter += 1
@@ -110,6 +115,11 @@ class ForecastingPipeline:
         }
         self.actions.append(entry)
         logger.info(f"[{step_name}] {description}")
+
+    def _set_progress(self, stage: str):
+        os.makedirs(self.output_dir, exist_ok=True)
+        with open(os.path.join(self.output_dir, "progress.json"), "w", encoding="utf-8") as handle:
+            json.dump({"stage": stage}, handle)
 
     # =========================================================================
     # STEP 1: LOAD
@@ -132,9 +142,14 @@ class ForecastingPipeline:
 
         # Parse date and sort
         df[self.date_column] = pd.to_datetime(df[self.date_column], errors="coerce")
-        df = df.dropna(subset=[self.date_column])
+        invalid_date_count = int(df[self.date_column].isna().sum())
+        if invalid_date_count:
+            raise ValueError(f"Date column contains {invalid_date_count} invalid dates. Reprocess the dataset before forecasting.")
         df = df.sort_values(by=self.date_column).reset_index(drop=True)
         df[self.target_column] = pd.to_numeric(df[self.target_column], errors="coerce")
+
+        if df.empty:
+            raise ValueError("Dataset contains no dated observations. Review the date column and preprocessing output.")
 
         self.df = df
         start_dt = str(df[self.date_column].iloc[0].date())
@@ -178,6 +193,11 @@ class ForecastingPipeline:
         # Check unique dates
         if df[self.date_column].duplicated().any():
             errors.append("Duplicate timestamps detected in chronological index.")
+        expected_dates = pd.date_range(df[self.date_column].iloc[0], df[self.date_column].iloc[-1], freq=self.frequency)
+        missing_periods = max(0, len(expected_dates) - df[self.date_column].nunique())
+        regular_frequency = missing_periods == 0 and len(expected_dates) == total_rows
+        if not regular_frequency:
+            warnings.append(f"Calendar frequency has {missing_periods} missing periods or off-cycle dates. Review the preprocessing alignment.")
 
         # Check target nulls
         null_count = int(df[self.target_column].isnull().sum())
@@ -208,6 +228,7 @@ class ForecastingPipeline:
 
         is_valid = len(errors) == 0
         status = "pass" if is_valid and len(warnings) == 0 else ("warn" if is_valid else "fail")
+        self.warnings.extend(warning for warning in warnings if warning not in self.warnings)
 
         self.validation_result = {
             "status": status,
@@ -216,7 +237,19 @@ class ForecastingPipeline:
             "seasonal_period": self.seasonal_period,
             "suggested_horizon": suggested_horizon,
             "errors": errors,
-            "warnings": warnings
+            "warnings": warnings,
+            "checks": {
+                "valid_dates": True,
+                "unique_dates": not df[self.date_column].duplicated().any(),
+                "regular_frequency": regular_frequency,
+                "missing_periods": missing_periods,
+                "complete_target": null_count == 0,
+                "target_variation": bool(target_std > 0 and np.isfinite(target_std)),
+                "sufficient_history": total_rows >= 24
+            },
+            "horizon_adjusted": self.horizon != self.requested_horizon,
+            "requested_horizon": self.requested_horizon,
+            "effective_horizon": self.horizon
         }
 
         if not is_valid:
@@ -232,7 +265,7 @@ class ForecastingPipeline:
         self._log_action(
             step_name="TIME_SERIES_VALIDATION",
             action="validation_passed",
-            description=f"Time-series integrity verified: sorted, unique, gap-free series with {total_rows} observations.{warn_desc}"
+            description=f"Time-series validation completed for {total_rows} chronological observations.{warn_desc}"
         )
         return self.validation_result
 
@@ -365,12 +398,14 @@ class ForecastingPipeline:
             "is_month_end (binary indicator)",
             "time_index (monotonically increasing integer)"
         ]
-        self._log_action(
-            step_name="FEATURE_ENGINEERING",
-            model_name="LightGBM",
-            action="features_created",
-            description=f"Engineered 11 backward-looking lag, rolling, and calendar features for LightGBM. Strictly backward-looking; no future information used."
-        )
+        self.features_engineered = features
+        if "LightGBM" in self.selected_models and self.eligibility_results.get("LightGBM", {}).get("eligible"):
+            self._log_action(
+                step_name="FEATURE_ENGINEERING",
+                model_name="LightGBM",
+                action="features_described",
+                description="LightGBM will use backward-looking lag, rolling, and calendar features."
+            )
         return features
 
     # =========================================================================
@@ -547,7 +582,7 @@ class ForecastingPipeline:
         valid_results = [r for r in self.model_results if r["status"] == "ok" and r[self.ranking_metric] is not None]
 
         if not valid_results:
-            raise RuntimeError("No models trained successfully on the holdout dataset.")
+            raise RuntimeError("No forecasting model could be successfully fitted to this dataset. Review target values, history length, frequency, and model selection.")
 
         # Rank ascending by the chosen metric (lowest error wins)
         valid_results.sort(key=lambda x: x[self.ranking_metric])
@@ -566,10 +601,10 @@ class ForecastingPipeline:
 
         # Baseline check warning
         baseline_model = next((r for r in valid_results if r["model_name"] == "Seasonal Naive"), None)
-        any_beat_baseline = any(r["beats_baseline"] for r in valid_results if r["model_name"] != "Seasonal Naive")
+        any_beat_baseline = bool(baseline_model and any(r[self.ranking_metric] < baseline_model[self.ranking_metric] for r in valid_results if r["model_name"] != "Seasonal Naive"))
 
         if not any_beat_baseline and len(valid_results) > 1:
-            warn_text = "No candidate model outperformed the Seasonal Naive baseline on MASE; treat future forecasts with caution."
+            warn_text = f"Seasonal Naive remained strongest on holdout {self.ranking_metric.upper()}; a more complex model was not forced to win."
             self.warnings.append(warn_text)
             self._log_action(
                 step_name="MODEL_SELECTION",
@@ -624,8 +659,8 @@ class ForecastingPipeline:
         refit_time = time.time() - t0
 
         point_preds = final_model.predict(H)
-        lower_80, upper_80 = final_model.predict_interval(H, level=0.80)
-        lower_95, upper_95 = final_model.predict_interval(H, level=0.95)
+        lower_80, upper_80 = final_model.predict_interval(H, level=0.80) if 0.80 in self.confidence_levels else (np.full(H, np.nan), np.full(H, np.nan))
+        lower_95, upper_95 = final_model.predict_interval(H, level=0.95) if 0.95 in self.confidence_levels else (np.full(H, np.nan), np.full(H, np.nan))
 
         # Generate future dates
         last_dt = full_dates.iloc[-1]
@@ -648,7 +683,7 @@ class ForecastingPipeline:
             step_name="REFIT_AND_FORECAST",
             model_name=self.winner_model_name,
             action="forecast_generated",
-            description=f"Refit {self.winner_model_name} on all {len(full_series)} observations in {round(refit_time, 2)}s. Generated {H}-step future forecast with 80% and 95% confidence intervals."
+            description=f"Refit {self.winner_model_name} on all {len(full_series)} observations in {round(refit_time, 2)}s. Generated {H}-step future forecast with {', '.join(str(int(level * 100)) + '%' for level in self.confidence_levels)} prediction intervals."
         )
 
         return forecast_df
@@ -662,7 +697,12 @@ class ForecastingPipeline:
 
         # 1. forecast.csv
         forecast_csv_path = os.path.join(self.output_dir, "forecast.csv")
-        self.future_forecast_df.to_csv(forecast_csv_path, index=False)
+        export_columns = ["date", "forecast"]
+        if 0.80 in self.confidence_levels:
+            export_columns.extend(["lower_80", "upper_80"])
+        if 0.95 in self.confidence_levels:
+            export_columns.extend(["lower_95", "upper_95"])
+        self.future_forecast_df[export_columns].to_csv(forecast_csv_path, index=False)
 
         # 2. holdout_predictions.csv
         holdout_csv_path = os.path.join(self.output_dir, "holdout_predictions.csv")
@@ -709,7 +749,45 @@ class ForecastingPipeline:
             clean_entry = {k: v for k, v in r.items() if k != "model_instance"}
             clean_model_results.append(clean_entry)
 
-        # 6. report.json
+        # 6. Evidence-based comparison and downstream handoff
+        valid = sorted((r for r in clean_model_results if r["status"] == "ok"), key=lambda r: r[self.ranking_metric])
+        winner = valid[0]
+        runner_up = valid[1] if len(valid) > 1 else None
+        baseline = next((r for r in valid if r["model_name"] == "Seasonal Naive"), None)
+        def comparison(other):
+            if not other or not other[self.ranking_metric] or not np.isfinite(other[self.ranking_metric]):
+                return None
+            return round((other[self.ranking_metric] - winner[self.ranking_metric]) / other[self.ranking_metric] * 100, 2)
+        winner_evidence = {
+            "metric": self.ranking_metric,
+            "winner_score": winner[self.ranking_metric],
+            "runner_up": runner_up["model_name"] if runner_up else None,
+            "runner_up_score": runner_up[self.ranking_metric] if runner_up else None,
+            "runner_up_improvement_percent": comparison(runner_up),
+            "baseline_score": baseline[self.ranking_metric] if baseline else None,
+            "baseline_improvement_percent": comparison(baseline)
+        }
+        metadata = {
+            "winning_model": self.winner_model_name,
+            "ranking_metric": self.ranking_metric,
+            "selected_models": self.selected_models,
+            "prediction_levels": self.confidence_levels,
+            "requested_horizon": self.requested_horizon,
+            "effective_horizon": self.horizon,
+            "holdout_percent": self.holdout_percent,
+            "evaluation_preprocessing": self.evaluation_note,
+            "preprocessing_contract": self.preprocessing_contract,
+            "winner_evidence": winner_evidence,
+            "model_metadata": xai_meta,
+            "warnings": self.warnings
+        }
+        metadata_path = os.path.join(self.output_dir, "forecast_metadata.json")
+        with open(metadata_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+
+        self._log_action(step_name="EXPORT", action="artifacts_saved", description=f"Exported forecast.csv ({self.horizon} periods), holdout_predictions.csv, report.json, forecast_metadata.json, and winning model artifacts.")
+
+        # 7. report.json
         report_data = {
             "job_id": self.job_id,
             "user_id": self.user_id,
@@ -721,15 +799,23 @@ class ForecastingPipeline:
             "total_observations": len(self.df),
             "train_observations": len(self.train_df),
             "holdout_observations": len(self.holdout_df),
+            "holdout_observed_targets": int(self.holdout_df[self.target_column].notna().sum()),
             "horizon": self.horizon,
+            "requested_horizon": self.requested_horizon,
+            "holdout_percent": self.holdout_percent,
+            "confidence_levels": self.confidence_levels,
+            "selected_models": self.selected_models,
             "ranking_metric": self.ranking_metric,
             "winner_model": self.winner_model_name,
             "warnings": self.warnings,
+            "validation": self.validation_result,
             "evaluation_preprocessing": self.evaluation_note,
             "preprocessing_contract": self.preprocessing_contract,
             "model_leaderboard": clean_model_results,
+            "winner_evidence": winner_evidence,
+            "baseline_comparison": {"model": "Seasonal Naive", "score": baseline[self.ranking_metric] if baseline else None, "improvement_percent": comparison(baseline)},
             "eligibility_decisions": self.eligibility_results,
-            "features_engineered": self.step4_feature_engineering_info() if "LightGBM" in self.selected_models else [],
+            "features_engineered": self.features_engineered if "LightGBM" in self.selected_models else [],
             "split_info": {
                 "train_start": str(self.train_df[self.date_column].iloc[0].date()),
                 "train_end": str(self.train_df[self.date_column].iloc[-1].date()),
@@ -737,11 +823,14 @@ class ForecastingPipeline:
                 "holdout_end": str(self.holdout_df[self.date_column].iloc[-1].date())
             },
             "audit_actions": self.actions,
+            "forecast_configuration": metadata,
+            "handoff": {"winning_model": self.winner_model_name, "ranking_metric": self.ranking_metric, "leaderboard": clean_model_results, "holdout_predictions": "holdout_predictions.csv", "future_forecast": "forecast.csv", "prediction_intervals": self.confidence_levels, "model_metadata": xai_meta, "decision_log": self.actions, "forecast_configuration": metadata, "data_contract": self.preprocessing_contract, "warnings": self.warnings},
             "output_files": {
                 "forecast_csv": forecast_csv_path,
                 "holdout_csv": holdout_csv_path,
                 "model_artifact": model_artifact_path,
-                "feature_metadata": feature_meta_path
+                "feature_metadata": feature_meta_path,
+                "forecast_metadata": metadata_path
             }
         }
 
@@ -749,24 +838,26 @@ class ForecastingPipeline:
         with open(report_json_path, "w", encoding="utf-8") as f:
             json.dump(report_data, f, indent=2)
 
-        self._log_action(
-            step_name="EXPORT",
-            action="artifacts_saved",
-            description=f"Exported forecast.csv ({self.horizon} periods), holdout_predictions.csv, report.json, and trained model artifacts for downstream explainable AI analysis."
-        )
-
         return report_data
 
     # =========================================================================
     # EXECUTE FULL PIPELINE
     # =========================================================================
     def run(self) -> Dict[str, Any]:
+        self._set_progress("validating")
         self.step1_load()
         self.step2_validate()
+        self._set_progress("eligibility")
         self.step3_check_eligibility()
         self.step4_feature_engineering_info()
         self.step5_split()
+        self._set_progress("training")
         self.step6_train_and_evaluate()
+        self._set_progress("evaluating")
+        self._set_progress("selecting")
         self.step8_select_winner()
+        self._set_progress("forecasting")
         self.step9_refit_and_forecast()
-        return self.step10_export()
+        report = self.step10_export()
+        self._set_progress("completed")
+        return report

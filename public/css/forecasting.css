@@ -964,3 +964,64 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Compact BI workflow */
+.forecasting-container { max-width: 1240px; }
+.agent-icon-badge { background: #e6f7f3; color: #0d9488; border-color: #c8e9e2; }
+.agent-title-block p { max-width: 650px; }
+.stepper-nav { padding: 12px 18px; }
+.stepper-step.active .stepper-circle { background: #0d9488; border-color: #0d9488; box-shadow: 0 0 0 4px #d9f1ec; }
+.stepper-step.completed:not(:last-child)::after { background: #0d9488; }
+.btn-primary-agent { background: #0d9488; }
+.btn-primary-agent:hover { background: #087f74; }
+.form-group-custom select:focus, .form-group-custom input:focus { border-color: #0d9488; box-shadow: 0 0 0 3px #d9f1ec; }
+.model-check-item input[type="checkbox"] { accent-color: #0d9488; }
+.section-title { font-size: 1.02rem; font-weight: 700; color: #1a2332; margin: 22px 0 12px; }
+.section-title small { font-size: .77rem; font-weight: 500; color: #64748b; margin-left: 8px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.compact-note { display: block; font-size: .8rem; color: #64748b; line-height: 1.45; margin: 3px 0 10px; }
+.dataset-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 345px), 1fr)); gap: 12px; margin-bottom: 22px; }
+.dataset-choice { display: flex; align-items: flex-start; gap: 12px; padding: 18px; border: 1px solid #dbe4eb; border-radius: 12px; background: #fff; cursor: pointer; flex-wrap: wrap; }
+.dataset-choice:has(input:checked) { border-color: #0d9488; box-shadow: 0 0 0 2px #d9f1ec; }
+.dataset-choice input { margin-top: 4px; accent-color: #0d9488; }
+.dataset-choice strong { color: #1a2332; display: block; overflow-wrap: anywhere; }
+.dataset-choice .compact-note { margin: 5px 0 0; }
+.dataset-scores { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; flex-basis: 100%; font-size: .8rem; color: #475569; }
+.dataset-scores small { margin-left: auto; color: #64748b; }
+.health-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.health-item { padding: 7px 10px; border: 1px solid #dbe4eb; border-radius: 8px; background: #f8fafc; font-size: .81rem; }
+.health-item.pass { color: #047857; background: #f0fdf7; border-color: #cbeede; }
+.health-item.blocked { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+.portfolio-list { border: 1px solid #dbe4eb; border-radius: 12px; overflow: hidden; margin-bottom: 18px; }
+.portfolio-row { border-bottom: 1px solid #e2e8f0; padding: 0 14px; background: #fff; }
+.portfolio-row:last-child { border-bottom: 0; }
+.portfolio-row summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 12px 0; cursor: pointer; }
+.portfolio-row summary::-webkit-details-marker { display: none; }
+.portfolio-row summary strong { min-width: 170px; color: #1a2332; font-size: .87rem; }
+.portfolio-row summary small { color: #64748b; flex: 1; }
+.portfolio-row .eligibility-reason, #model-details .portfolio-row p { padding: 0 0 12px; margin: 0; font-size: .83rem; color: #475569; }
+.row-chevron { color: #0d9488; font-size: .78rem; }
+.recommendation-card, .evidence-card { background: #f8fafc; border: 1px solid #dbe4eb; border-radius: 12px; padding: 14px 16px; color: #1a2332; margin-bottom: 16px; font-size: .86rem; }
+.evidence-card { background: #fff; }
+.evidence-card p { color: #475569; margin: 6px 0 0; }
+.field-details { margin-top: 6px; font-size: .75rem; line-height: 1.45; color: #64748b; }
+.field-details summary { color: #0d9488; cursor: pointer; }
+.winner-hero-card { background: #f0fdf9; border-color: #c8e9e2; border-left-color: #0d9488; }
+.winner-hero-left h3 { color: #115e59; }
+.winner-hero-left p { color: #0f766e; }
+.winner-row, .winner-row:hover td { background: #f0fdf7 !important; }
+.quiet-details { border: 1px solid #dbe4eb; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; }
+.quiet-details > summary { cursor: pointer; font-weight: 600; color: #0f766e; }
+.quiet-details .audit-timeline { margin-top: 18px; }
+.text-action { background: none; border: 0; color: #0f766e; cursor: pointer; font: inherit; font-size: .85rem; font-weight: 600; padding: 0; }
+.download-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+.progress-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 660px; margin: 18px auto; text-align: left; }
+.progress-item { color: #94a3b8; font-size: .82rem; }
+.progress-item.current { color: #0f766e; font-weight: 700; }
+.progress-item.done { color: #047857; }
+@media (max-width: 767px) {
+  .dataset-card-grid, .progress-list { grid-template-columns: 1fr; }
+  .portfolio-row summary { flex-wrap: wrap; }
+  .portfolio-row summary strong { min-width: 0; flex-basis: 100%; }
+  .section-title small { display: block; margin-left: 0; }
+}

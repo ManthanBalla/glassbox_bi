@@ -10,12 +10,25 @@ document.addEventListener('DOMContentLoaded', () => {
   let availableDatasets = [];
   let selectedDataset = null;
   let precheckData = null;
+  let visibleForecastRows = 15;
+  let latestForecastPoints = [];
+  let reportConfidenceLevels = [0.80, 0.95];
+  const modelPurpose = {
+    'Seasonal Naive': 'Baseline',
+    'ETS (Exponential Smoothing)': 'Trend + seasonality',
+    'ARIMA / SARIMA': 'Autoregressive patterns',
+    Prophet: 'Trend + calendar seasonality',
+    LightGBM: 'Lag + calendar features',
+    Theta: 'Trend/level forecasting'
+  };
+  const safe = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch]));
+  const frequencyName = code => ({D: 'Daily', W: 'Weekly', M: 'Monthly', MS: 'Monthly', Q: 'Quarterly', QS: 'Quarterly', Y: 'Yearly', YS: 'Yearly'})[String(code || 'D').toUpperCase()] || code || 'Daily';
+  const horizonUnit = code => ({D: 'days', W: 'weeks', M: 'months', MS: 'months', Q: 'quarters', QS: 'quarters', Y: 'years', YS: 'years'})[String(code || 'D').toUpperCase()] || 'periods';
   let currentJobId = null;
   let pollingInterval = null;
 
   // Chart Instances
   let mainForecastChartInstance = null;
-  let errorMetricsChartInstance = null;
   let holdoutChartInstance = null;
 
   // DOM Elements
@@ -149,34 +162,26 @@ document.addEventListener('DOMContentLoaded', () => {
       tbody.innerHTML = '';
 
       availableDatasets.forEach((ds, idx) => {
-        const tr = document.createElement('tr');
-        tr.style.cursor = 'pointer';
+        const tr = document.createElement('label');
+        tr.className = 'dataset-choice';
 
         const isFirst = idx === preferredIndex;
         if (isFirst) selectedDataset = ds;
 
         const dateStr = ds.created_at ? new Date(ds.created_at).toLocaleDateString() : '-';
-        const readinessScore = ds.readiness_score !== null ? parseFloat(ds.readiness_score) : 100;
+        const readinessScore = ds.readiness_score !== null ? parseFloat(ds.readiness_score) : null;
         const readinessBadgeClass = readinessScore >= 80 ? 'badge-teal' : (readinessScore >= 50 ? 'badge-warning' : 'badge-error');
+        const contract = ds.data_contract || {};
+        const quality = ds.quality_score_after ?? contract.data_quality_score;
 
         tr.innerHTML = `
-          <td>
-            <input type="radio" name="dataset_select" value="${ds.id}" ${isFirst ? 'checked' : ''} style="cursor: pointer; accent-color: #0284c7;">
-          </td>
-          <td style="font-weight: 600; color: var(--color-primary);">${ds.source_file_name || 'Dataset'}</td>
-          <td><span class="badge badge-teal" style="font-size: 0.72rem;">${ds.target_column || 'target'}</span></td>
-          <td><code>${ds.date_column || 'date'}</code></td>
-          <td><span class="badge badge-navy" style="font-size: 0.72rem;">${ds.frequency || 'D'}</span></td>
-          <td>${(ds.rows_after || 0).toLocaleString()}</td>
-          <td><span class="badge ${readinessBadgeClass}" style="font-size: 0.72rem;">${readinessScore}/100</span></td>
-          <td style="color: var(--color-text-muted); font-size: 0.8rem;">${dateStr}</td>
+          <input type="radio" name="dataset_select" value="${safe(ds.id)}" ${isFirst ? 'checked' : ''}>
+          <div><strong>${safe(ds.source_file_name || 'Cleaned dataset')}</strong><span class="compact-note">CSV · ${(ds.rows_after || contract.observations || 0).toLocaleString()} observations · ${safe(frequencyName(ds.frequency || contract.frequency))} · Target: ${safe(ds.target_column || contract.target_column)}</span></div>
+          <div class="dataset-scores"><span>Quality ${quality ?? '—'}/100</span><span class="badge ${readinessBadgeClass}">Readiness ${readinessScore ?? '—'}/100</span><small>${safe(dateStr)}</small></div>
         `;
 
-        tr.addEventListener('click', (e) => {
-          if (e.target.tagName !== 'INPUT') {
-            const radio = tr.querySelector('input[type="radio"]');
-            radio.checked = true;
-          }
+        tr.addEventListener('click', () => {
+          tr.querySelector('input[type="radio"]').checked = true;
           selectedDataset = ds;
           btnToStep2.disabled = false;
         });
@@ -216,30 +221,46 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPrecheckStep(res);
         goToStep(2);
       } catch (err) {
-        showAlert('Pre-Check Error: ' + err.message);
+        showAlert('This dataset is not ready for forecasting. Review its dates, target values, and preprocessing result.');
+        const detail = document.createElement('details');
+        detail.innerHTML = `<summary>View technical reason</summary><pre>${safe(err.message)}</pre>`;
+        alertBanner.appendChild(detail);
       } finally {
         btnToStep2.disabled = false;
-        btnToStep2.innerHTML = 'Inspect & Pre-Check Dataset &rarr;';
+        btnToStep2.innerHTML = 'Continue &rarr;';
       }
     });
   }
 
   function renderPrecheckStep(data) {
     document.getElementById('chk-rows').textContent = (data.total_rows || 0).toLocaleString();
-    document.getElementById('chk-freq').textContent = data.frequency || 'D';
-    document.getElementById('chk-period').textContent = data.seasonal_period || 1;
+    document.getElementById('chk-freq').textContent = frequencyName(data.frequency);
+    const seasonLabel = data.seasonal_period === 7 ? 'Weekly' : (data.seasonal_period === 52 ? 'Yearly' : (data.seasonal_period === 12 ? 'Yearly' : (data.seasonal_period === 4 ? 'Yearly' : 'None')));
+    document.getElementById('chk-period').textContent = `${seasonLabel} cycle · m=${data.seasonal_period || 1}`;
     document.getElementById('chk-target').textContent = data.target_column || 'Target';
 
     // Validation badge
     const badgeWrap = document.getElementById('precheck-badge-wrap');
     const valStatus = (data.validation && data.validation.status) || 'pass';
     if (valStatus === 'pass') {
-      badgeWrap.innerHTML = '<span class="badge badge-teal" style="font-size: 0.8rem; padding: 4px 10px;">Time-Series Validated: PASS</span>';
+      badgeWrap.innerHTML = '<span class="badge badge-teal">Ready for model evaluation</span>';
     } else if (valStatus === 'warn') {
-      badgeWrap.innerHTML = '<span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.8rem; padding: 4px 10px;">Validated with Warnings</span>';
+      badgeWrap.innerHTML = '<span class="badge badge-warning">Ready with warnings</span>';
     } else {
-      badgeWrap.innerHTML = '<span class="badge" style="background: #fee2e2; color: #991b1b; font-size: 0.8rem; padding: 4px 10px;">Validation: FAIL</span>';
+      badgeWrap.innerHTML = '<span class="badge badge-error">Pre-check blocked</span>';
     }
+
+    const checks = data.validation?.checks || {};
+    const health = [
+      [`${(data.total_rows || 0).toLocaleString()} observations`, checks.sufficient_history],
+      ['Valid dates', checks.valid_dates],
+      ['No duplicate timestamps', checks.unique_dates],
+      [checks.regular_frequency ? 'Regular frequency' : `${checks.missing_periods ?? 'Some'} missing or off-cycle periods`, checks.regular_frequency],
+      ['Complete target values', checks.complete_target],
+      ['Target has variation', checks.target_variation],
+      ['Sufficient history', checks.sufficient_history]
+    ];
+    document.getElementById('health-container').innerHTML = health.map(([label, ok]) => `<span class="health-item ${ok ? 'pass' : 'blocked'}">${ok ? '✓' : '✕'} ${safe(label)}</span>`).join('');
 
     // Render eligibility cards
     const eligContainer = document.getElementById('eligibility-container');
@@ -254,19 +275,17 @@ document.addEventListener('DOMContentLoaded', () => {
         ? '<span class="badge badge-teal" style="font-size: 0.72rem;">Eligible</span>'
         : `<span class="badge" style="background: #fef3c7; color: #92400e; font-size: 0.72rem;">${info.status === 'unavailable' ? 'Unavailable' : 'Skipped'}</span>`;
 
-      const card = document.createElement('div');
-      card.className = `eligibility-card ${statusClass}`;
+      const card = document.createElement('details');
+      card.className = `portfolio-row ${statusClass}`;
       card.innerHTML = `
-        <div>
-          <div class="eligibility-header">
-            <span class="eligibility-model-name">${mName}</span>
-            ${badgeHtml}
-          </div>
-          <p class="eligibility-reason">${info.reason}</p>
-        </div>
+        <summary><strong>${safe(mName)}</strong><small>${safe(modelPurpose[mName])}</small>${badgeHtml}<span class="row-chevron">Details</span></summary>
+        <p class="eligibility-reason">${safe(info.reason)}</p>
       `;
       eligContainer.appendChild(card);
     });
+    const eligibleCount = Object.values(elig).filter(item => item.eligible).length;
+    document.getElementById('eligibility-count').textContent = `${eligibleCount} of 6 candidates available`;
+    document.getElementById('precheck-recommendation').textContent = `${eligibleCount} candidates available · ${seasonLabel} cycle assumed from frequency · Recommended: run multi-model evaluation.`;
 
     // Prefill Step 3 Horizon
     const horizonInput = document.getElementById('cfg-horizon');
@@ -276,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Populate model checklist for Step 3
     populateModelChecklist(elig);
+    updateHorizonHelper();
   }
 
   function populateModelChecklist(elig) {
@@ -283,12 +303,12 @@ document.addEventListener('DOMContentLoaded', () => {
     checklistBox.innerHTML = '';
 
     const allModels = [
-      { id: 'Seasonal Naive', name: 'Seasonal Naive', sub: 'Baseline model repeating previous cycle' },
-      { id: 'ETS (Exponential Smoothing)', name: 'ETS (Exponential Smoothing)', sub: 'State-space exponential trend and seasonal smoothing' },
-      { id: 'ARIMA / SARIMA', name: 'ARIMA / SARIMA', sub: 'Auto-order selected autoregressive integrated moving average' },
-      { id: 'Prophet', name: 'Prophet', sub: 'Bayesian generalized additive model with holiday/seasonal priors' },
-      { id: 'LightGBM', name: 'LightGBM', sub: 'Gradient boosting with recursive lag and rolling window features' },
-      { id: 'Theta', name: 'Theta', sub: 'Dynamic decomposition into curvature and linear trend lines' }
+      { id: 'Seasonal Naive', name: 'Seasonal Naive', sub: 'Baseline' },
+      { id: 'ETS (Exponential Smoothing)', name: 'ETS (Exponential Smoothing)', sub: 'Trend + seasonality' },
+      { id: 'ARIMA / SARIMA', name: 'ARIMA / SARIMA', sub: 'Autoregressive patterns' },
+      { id: 'Prophet', name: 'Prophet', sub: 'Trend + calendar seasonality' },
+      { id: 'LightGBM', name: 'LightGBM', sub: 'Lag + calendar features' },
+      { id: 'Theta', name: 'Theta', sub: 'Trend/level forecasting' }
     ];
 
     allModels.forEach(m => {
@@ -298,18 +318,28 @@ document.addEventListener('DOMContentLoaded', () => {
       const item = document.createElement('label');
       item.className = `model-check-item ${isEligible ? '' : 'disabled'}`;
       item.innerHTML = `
-        <input type="checkbox" name="models" value="${m.name}" ${isEligible ? 'checked' : 'disabled'}>
+        <input type="checkbox" name="models" value="${m.name}" ${isEligible ? 'checked' : ''} ${!isEligible || m.name === 'Seasonal Naive' ? 'disabled' : ''}>
         <div class="model-check-label">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="model-check-title">${m.name}</span>
+            <span class="model-check-title">${safe(m.name)}</span>
             ${isEligible ? '' : '<span class="badge" style="font-size: 0.65rem; background: #e2e8f0; color: #64748b;">Skipped</span>'}
           </div>
-          <span class="model-check-sub">${isEligible ? m.sub : info.reason}</span>
+          <span class="model-check-sub">${safe(isEligible ? m.sub : info.reason)}</span>
         </div>
       `;
       checklistBox.appendChild(item);
     });
   }
+
+  function updateHorizonHelper() {
+    const count = Number(document.getElementById('cfg-horizon').value) || 12;
+    const unit = horizonUnit(precheckData?.frequency || selectedDataset?.frequency);
+    document.getElementById('horizon-helper').textContent = `Next ${count} ${unit}`;
+    const models = document.querySelectorAll('#model-checklist-box input[type="checkbox"]:checked').length;
+    document.getElementById('setup-summary').textContent = `Recommended setup · ${count} ${unit} · ${document.getElementById('cfg-metric').value.toUpperCase()} · ${Math.round(Number(document.getElementById('cfg-holdout').value) * 100)}% holdout · ${models} models including baseline`;
+  }
+  ['cfg-horizon', 'cfg-metric', 'cfg-holdout'].forEach(id => document.getElementById(id)?.addEventListener('change', updateHorizonHelper));
+  document.getElementById('model-checklist-box')?.addEventListener('change', updateHorizonHelper);
 
   // Step 2 & 3 navigation
   document.getElementById('btn-back-to-step-1')?.addEventListener('click', () => goToStep(1));
@@ -340,12 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (confChoice === '80') confidenceLevels = [0.80];
 
       const checkedBoxes = Array.from(document.querySelectorAll('#model-checklist-box input[type="checkbox"]:checked'));
-      const selectedModelNames = checkedBoxes.map(b => b.value);
-
-      if (selectedModelNames.length === 0) {
-        showAlert('Please select at least one eligible model to run.');
-        return;
-      }
+      const selectedModelNames = ['Seasonal Naive', ...checkedBoxes.map(b => b.value).filter(name => name !== 'Seasonal Naive')];
 
       goToStep(4);
       const runningCard = document.getElementById('forecast-running-card');
@@ -354,7 +379,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       runningCard.style.display = 'block';
       completedContainer.style.display = 'none';
-      runningStatus.textContent = 'Submitting job and preparing chronological holdout...';
+      runningStatus.textContent = 'Validating data';
+      renderProgress(0);
 
       try {
         const runRes = await api.post('/api/agents/forecasting/run', {
@@ -376,7 +402,10 @@ document.addEventListener('DOMContentLoaded', () => {
         pollJobStatus(currentJobId);
       } catch (err) {
         runningCard.style.display = 'none';
-        showAlert('Forecasting Job Error: ' + err.message);
+        showAlert('The forecast could not be started. Review the configuration and try again.');
+        const detail = document.createElement('details');
+        detail.innerHTML = `<summary>View technical reason</summary><pre>${safe(err.message)}</pre>`;
+        alertBanner.appendChild(detail);
         goToStep(3);
       }
     });
@@ -385,6 +414,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // -------------------------------------------------------------
   // 5. LIVE POLLING & STEP 4 RENDERING
   // -------------------------------------------------------------
+  function renderProgress(active) {
+    const stages = ['Validating data', 'Checking model eligibility', 'Training candidate models', 'Evaluating models', 'Selecting best model', 'Generating future forecast'];
+    document.getElementById('forecast-progress-list').innerHTML = stages.map((stage, index) => `<span class="progress-item ${index < active ? 'done' : (index === active ? 'current' : '')}">${index < active ? '✓' : (index === active ? '●' : '○')} ${stage}</span>`).join('');
+  }
+
   function pollJobStatus(jobId) {
     if (pollingInterval) clearInterval(pollingInterval);
 
@@ -396,13 +430,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!res.success || !res.job) return;
 
         const job = res.job;
+        const progressIndex = {validating: 0, eligibility: 1, training: 2, evaluating: 3, selecting: 4, forecasting: 5, completed: 6}[job.progress_stage];
+        if (progressIndex !== undefined) {
+          renderProgress(progressIndex);
+          const stageText = ['Validating data', 'Checking model eligibility', 'Training candidate models', 'Evaluating models', 'Selecting best model', 'Generating future forecast'][Math.min(progressIndex, 5)];
+          runningStatus.textContent = stageText;
+        }
         if (job.status === 'validating') {
-          runningStatus.textContent = 'Validating series continuity and verifying seasonal bounds...';
+          if (progressIndex === undefined) renderProgress(0);
         } else if (job.status === 'training') {
-          runningStatus.textContent = 'Training candidate models on chronological training split...';
+          if (progressIndex === undefined) renderProgress(2);
         } else if (job.status === 'evaluating') {
-          runningStatus.textContent = 'Evaluating holdout error metrics (RMSE, MAE, sMAPE, MASE) and selecting winner...';
+          if (progressIndex === undefined) renderProgress(4);
         } else if (job.status === 'completed') {
+          renderProgress(6);
           clearInterval(pollingInterval);
           pollingInterval = null;
           await renderCompletedForecast(jobId);
@@ -410,7 +451,10 @@ document.addEventListener('DOMContentLoaded', () => {
           clearInterval(pollingInterval);
           pollingInterval = null;
           document.getElementById('forecast-running-card').style.display = 'none';
-          showAlert(`Forecasting Job Failed: ${job.error_message || 'Unknown execution error'}`);
+          showAlert('Forecasting could not be completed. Review target values, history length, frequency, or model selection.');
+          const detail = document.createElement('details');
+          detail.innerHTML = `<summary>View technical error</summary><pre>${safe(job.error_message || 'No eligible model successfully produced a forecast.')}</pre>`;
+          alertBanner.appendChild(detail);
           goToStep(3);
         }
       } catch (err) {
@@ -440,6 +484,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const leaderboard = reportRes.leaderboard || [];
       const auditActions = reportRes.audit_actions || [];
       const winnerName = job.winner_model || (leaderboard[0] ? leaderboard[0].model_name : 'Winner');
+      const disk = reportRes.disk_report || {};
+      const evidence = disk.winner_evidence || {};
+      const levels = disk.confidence_levels || [0.80, 0.95];
+      reportConfidenceLevels = levels;
+      visibleForecastRows = 15;
 
       // 1. Winner Hero Banner
       document.getElementById('winner-model-name').textContent = winnerName;
@@ -448,21 +497,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const winnerRow = leaderboard.find(r => r.model_name === winnerName) || leaderboard[0] || {};
       const metricKey = (job.selected_metric || 'rmse').toLowerCase();
-      document.getElementById('winner-metric-val').textContent = winnerRow[metricKey] !== undefined ? winnerRow[metricKey] : '-';
+      document.getElementById('winner-metric-val').textContent = winnerRow[metricKey] ?? '-';
 
       const baselineRow = leaderboard.find(r => r.model_name === 'Seasonal Naive');
       let improvementText = '';
-      if (baselineRow && winnerRow[metricKey] && baselineRow[metricKey] && winnerName !== 'Seasonal Naive') {
+      if (baselineRow && Number(winnerRow[metricKey]) >= 0 && Number(baselineRow[metricKey]) > 0 && winnerName !== 'Seasonal Naive') {
         const pctDiff = ((baselineRow[metricKey] - winnerRow[metricKey]) / baselineRow[metricKey] * 100).toFixed(1);
         improvementText = ` Outperformed Seasonal Naive baseline by ${pctDiff}%.`;
       }
       document.getElementById('winner-model-reason').textContent =
-        `Selected as winning model with lowest holdout error (${metricKey.toUpperCase()}: ${winnerRow[metricKey] || '-'}; MASE: ${winnerRow.mase || '-'}).${improvementText}`;
+        `${winnerName} achieved the lowest ${metricKey.toUpperCase()} on the chronological holdout.${improvementText}`;
+      document.getElementById('result-horizon').textContent = `${job.horizon} periods`;
+      document.getElementById('result-model-count').textContent = leaderboard.filter(row => row.status === 'ok').length;
+      document.getElementById('result-quality').textContent = winnerName === 'Seasonal Naive' ? 'Baseline strongest' : 'Better than baseline';
+      const contract = disk.preprocessing_contract || {};
+      const quality = job.quality_score_after ?? '—';
+      const readiness = job.readiness_score ?? contract.forecast_readiness ?? '—';
+      document.getElementById('result-data-health').textContent = `${quality} / ${readiness}`;
+      const horizonWarning = document.getElementById('horizon-warning');
+      if (disk.requested_horizon && disk.horizon !== disk.requested_horizon) {
+        horizonWarning.style.display = 'block';
+        horizonWarning.textContent = `Horizon adjusted: ${disk.requested_horizon} requested, ${disk.horizon} used because the request was large relative to available history.`;
+      } else horizonWarning.style.display = 'none';
+      document.getElementById('winner-evidence').innerHTML = `<strong>Why ${safe(winnerName)} won</strong><p>Lowest holdout ${safe(metricKey.toUpperCase())}: ${safe(winnerRow[metricKey] ?? '—')}. ${evidence.runner_up ? `Next best: ${safe(evidence.runner_up)} (${safe(evidence.runner_up_score)}). ${evidence.runner_up_improvement_percent == null ? '' : `${safe(evidence.runner_up_improvement_percent)}% lower error.`}` : 'Only one model completed evaluation.'}</p>`;
+      document.getElementById('baseline-comparison').innerHTML = baselineRow ? `<strong>Baseline comparison</strong><p>Seasonal Naive ${safe(metricKey.toUpperCase())}: ${safe(baselineRow[metricKey] ?? '—')}. ${winnerName === 'Seasonal Naive' ? 'Baseline remains the strongest model.' : `${safe(winnerName)}: ${safe(winnerRow[metricKey] ?? '—')} (${evidence.baseline_improvement_percent ?? '—'}% lower error).`}</p>` : '';
+      document.getElementById('forecast-chart-note').textContent = `Forecast begins after the last historical observation. ${levels.map(level => `${Math.round(level * 100)}%`).join(' and ')} model-based interval${levels.length > 1 ? 's' : ''} shown; coverage is not guaranteed.`;
+      document.querySelectorAll('.bound-80').forEach(el => el.style.display = levels.includes(0.80) ? '' : 'none');
+      document.querySelectorAll('.bound-95').forEach(el => el.style.display = levels.includes(0.95) ? '' : 'none');
 
       // Baseline Warning Banner
       const baselineWarningBanner = document.getElementById('baseline-warning-banner');
-      const anyBeat = leaderboard.some(r => r.model_name !== 'Seasonal Naive' && r.beats_baseline);
-      if (!anyBeat && leaderboard.length > 1) {
+      if (winnerName === 'Seasonal Naive' && leaderboard.some(r => r.status === 'ok' && r.model_name !== 'Seasonal Naive')) {
         baselineWarningBanner.style.display = 'block';
       } else {
         baselineWarningBanner.style.display = 'none';
@@ -474,28 +539,19 @@ document.addEventListener('DOMContentLoaded', () => {
       leaderboard.forEach(r => {
         const tr = document.createElement('tr');
         const isWinner = r.model_name === winnerName;
-        if (isWinner) tr.style.background = 'rgba(2, 132, 199, 0.05)';
-
-        const beatsBadge = r.status === 'ok'
-          ? (r.beats_baseline
-              ? '<span class="badge badge-teal" style="font-size: 0.72rem;">Yes</span>'
-              : '<span class="badge" style="background: #fee2e2; color: #991b1b; font-size: 0.72rem;">No</span>')
-          : '<span style="color: var(--color-text-subtle);">-</span>';
+        if (isWinner) tr.classList.add('winner-row');
 
         const statusBadge = r.status === 'ok'
           ? (isWinner ? '<span class="badge badge-teal" style="font-weight: 700;">WINNER</span>' : '<span class="badge badge-navy">OK</span>')
-          : `<span class="badge" style="background: #fef3c7; color: #92400e;">${r.status}</span>`;
+          : `<span class="badge badge-warning">${safe(r.status)}</span>`;
 
         tr.innerHTML = `
-          <td style="font-weight: 700; color: var(--color-primary);">${r.rank < 900 ? '#' + r.rank : '-'}</td>
-          <td style="font-weight: ${isWinner ? '700' : '500'}; color: var(--color-primary);">${r.model_name}</td>
-          <td>${r.rmse !== null ? r.rmse : '-'}</td>
-          <td>${r.mae !== null ? r.mae : '-'}</td>
-          <td>${r.mape !== null ? r.mape + '%' : '-'}</td>
-          <td>${r.smape !== null ? r.smape + '%' : '-'}</td>
-          <td>${r.mase !== null ? r.mase : '-'}</td>
-          <td>${beatsBadge}</td>
-          <td style="font-size: 0.8rem; color: var(--color-text-muted);">${r.train_seconds ? r.train_seconds + 's' : '-'}</td>
+          <td>${r.status === 'ok' ? '#' + r.rank : '—'}</td>
+          <td><strong>${safe(r.model_name)}</strong>${isWinner ? ' <span class="badge badge-teal">BEST MODEL</span>' : ''}</td>
+          <td>${safe(r.rmse ?? '—')}</td>
+          <td>${safe(r.mae ?? '—')}</td>
+          <td>${r.smape == null ? '—' : safe(r.smape) + '%'}</td>
+          <td>${safe(r.mase ?? '—')}</td>
           <td>${statusBadge}</td>
         `;
         lTbody.appendChild(tr);
@@ -503,11 +559,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 3. Render Chart.js Visualizations
       renderMainForecastChart(forecastDataRes);
-      renderErrorComparisonChart(leaderboard);
-      renderHoldoutComparisonChart(forecastDataRes);
+      renderHoldoutComparisonChart(forecastDataRes, winnerName);
 
       // 4. Decision Log Timeline
       renderAuditTimeline(auditActions);
+      const summaryActions = auditActions.filter(a => ['validation_passed', 'winner_selected', 'forecast_generated', 'artifacts_saved'].includes(a.action));
+      document.getElementById('decision-summary').innerHTML = summaryActions.map(a => `<span class="health-item pass">✓ ${safe(a.step_name.replaceAll('_', ' ').toLowerCase())}</span>`).join('');
+      document.getElementById('model-details').innerHTML = leaderboard.map(row => `<details class="portfolio-row"><summary><strong>${safe(row.model_name)}</strong><span class="badge ${row.status === 'ok' ? 'badge-teal' : 'badge-warning'}">${safe(row.status)}</span></summary><p>${safe(row.skip_reason || disk.eligibility_decisions?.[row.model_name]?.reason || modelPurpose[row.model_name])}</p><p>RMSE ${safe(row.rmse ?? '—')} · MAE ${safe(row.mae ?? '—')} · sMAPE ${safe(row.smape ?? '—')} · MASE ${safe(row.mase ?? '—')}</p>${row.model_name === 'LightGBM' && row.status === 'ok' ? `<p>Uses backward-looking lag, rolling, and calendar features. Recursive forecasts use previous predictions as lag inputs.</p><p>${safe((disk.features_engineered || []).join(', '))}</p>` : ''}</details>`).join('');
 
       // 5. Projected Points Table
       renderForecastPointsTable(forecastDataRes.forecast || []);
@@ -515,6 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // 6. Download CSV Button
       const btnDownload = document.getElementById('btn-download-forecast-csv');
       btnDownload.href = `/api/agents/forecasting/jobs/${jobId}/download`;
+      document.getElementById('btn-download-report').href = `/api/agents/forecasting/jobs/${jobId}/report/download`;
 
       // Refresh job history table at bottom
       loadJobHistory();
@@ -537,6 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const history = data.history || [];
     const forecast = data.forecast || [];
+    const levels = reportConfidenceLevels;
 
     // Slice last 60 history points for clear visibility if history is very long
     const plotHistory = history.length > 80 ? history.slice(-80) : history;
@@ -579,64 +639,43 @@ document.addEventListener('DOMContentLoaded', () => {
       ...forecast.map(f => f.upper_80)
     ];
 
+    const chartDatasets = [
+      {label: 'Historical actual', data: historyData, borderColor: '#1a2332', borderWidth: 2, pointRadius: 1},
+      {label: 'Future forecast', data: futureVals, borderColor: '#0d9488', borderWidth: 2.5, pointRadius: 2}
+    ];
+    if (levels.includes(0.95)) {
+      chartDatasets.push({label: '95% upper', data: upper95, borderColor: 'rgba(13,148,136,.18)', pointRadius: 0, fill: '+1', backgroundColor: 'rgba(13,148,136,.08)'});
+      chartDatasets.push({label: '95% lower', data: lower95, borderColor: 'rgba(13,148,136,.18)', pointRadius: 0});
+    }
+    if (levels.includes(0.80)) {
+      chartDatasets.push({label: '80% upper', data: upper80, borderColor: 'rgba(13,148,136,.35)', pointRadius: 0, fill: '+1', backgroundColor: 'rgba(13,148,136,.15)'});
+      chartDatasets.push({label: '80% lower', data: lower80, borderColor: 'rgba(13,148,136,.35)', pointRadius: 0});
+    }
     mainForecastChartInstance = new Chart(ctx, {
       type: 'line',
+      plugins: [{
+        id: 'forecastStart',
+        afterDatasetsDraw(chart) {
+          if (!historyVals.length || !forecast.length) return;
+          const x = chart.scales.x.getPixelForValue(historyVals.length - 0.5);
+          const {ctx: canvas, chartArea} = chart;
+          canvas.save();
+          canvas.strokeStyle = '#94a3b8';
+          canvas.setLineDash([4, 4]);
+          canvas.beginPath();
+          canvas.moveTo(x, chartArea.top);
+          canvas.lineTo(x, chartArea.bottom);
+          canvas.stroke();
+          canvas.setLineDash([]);
+          canvas.fillStyle = '#475569';
+          canvas.font = '11px Inter, sans-serif';
+          canvas.fillText('Forecast start', Math.min(x + 5, chartArea.right - 82), chartArea.top + 12);
+          canvas.restore();
+        }
+      }],
       data: {
         labels: allDates,
-        datasets: [
-          {
-            label: 'Historical Actual',
-            data: historyData,
-            borderColor: '#1a2332',
-            backgroundColor: '#1a2332',
-            borderWidth: 2,
-            pointRadius: 2,
-            tension: 0.1
-          },
-          {
-            label: 'Projected Forecast',
-            data: futureVals,
-            borderColor: '#0284c7',
-            backgroundColor: '#0284c7',
-            borderWidth: 2.5,
-            pointRadius: 3,
-            tension: 0.1
-          },
-          {
-            label: '95% Upper Bound',
-            data: upper95,
-            borderColor: 'rgba(2, 132, 199, 0.25)',
-            borderWidth: 1,
-            pointRadius: 0,
-            fill: '+1',
-            backgroundColor: 'rgba(2, 132, 199, 0.10)'
-          },
-          {
-            label: '95% Lower Bound',
-            data: lower95,
-            borderColor: 'rgba(2, 132, 199, 0.25)',
-            borderWidth: 1,
-            pointRadius: 0,
-            fill: false
-          },
-          {
-            label: '80% Interval Band',
-            data: upper80,
-            borderColor: 'rgba(13, 148, 136, 0.35)',
-            borderWidth: 1,
-            pointRadius: 0,
-            fill: '+1',
-            backgroundColor: 'rgba(13, 148, 136, 0.18)'
-          },
-          {
-            label: '80% Lower Bound',
-            data: lower80,
-            borderColor: 'rgba(13, 148, 136, 0.35)',
-            borderWidth: 1,
-            pointRadius: 0,
-            fill: false
-          }
-        ]
+        datasets: chartDatasets
       },
       options: {
         responsive: true,
@@ -647,7 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
             labels: {
               boxWidth: 12,
               font: { family: 'Inter', size: 11 },
-              filter: (item) => !item.text.includes('Lower Bound')
+              filter: (item) => !item.text.toLowerCase().includes('lower')
             }
           },
           tooltip: {
@@ -669,57 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function renderErrorComparisonChart(leaderboard) {
-    const ctx = document.getElementById('errorMetricsChart');
-    if (!ctx) return;
-
-    if (errorMetricsChartInstance) {
-      errorMetricsChartInstance.destroy();
-    }
-
-    const validModels = leaderboard.filter(r => r.status === 'ok');
-    const labels = validModels.map(r => r.model_name.replace(' (Exponential Smoothing)', ''));
-    const rmseVals = validModels.map(r => r.rmse);
-    const maeVals = validModels.map(r => r.mae);
-    const smapeVals = validModels.map(r => r.smape);
-
-    errorMetricsChartInstance = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'RMSE',
-            data: rmseVals,
-            backgroundColor: '#0284c7'
-          },
-          {
-            label: 'MAE',
-            data: maeVals,
-            backgroundColor: '#0d9488'
-          },
-          {
-            label: 'sMAPE (%)',
-            data: smapeVals,
-            backgroundColor: '#f59e0b'
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'top', labels: { boxWidth: 10, font: { size: 10 } } }
-        },
-        scales: {
-          x: { ticks: { font: { size: 9 }, maxRotation: 30 } },
-          y: { grid: { color: 'rgba(226, 232, 240, 0.6)' }, ticks: { font: { size: 9 } } }
-        }
-      }
-    });
-  }
-
-  function renderHoldoutComparisonChart(data) {
+  function renderHoldoutComparisonChart(data, winnerName) {
     const ctx = document.getElementById('holdoutComparisonChart');
     if (!ctx) return;
 
@@ -733,9 +722,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const dates = holdout.map(h => h.date);
     const actualVals = holdout.map(h => h.actual);
 
-    // Color palette for models
-    const colors = ['#0284c7', '#0d9488', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
-
     const datasets = [
       {
         label: 'Actual Ground Truth',
@@ -748,13 +734,13 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     const modelCols = Object.keys(holdout[0]).filter(k => k !== 'date' && k !== 'actual');
-    modelCols.forEach((col, idx) => {
+    modelCols.filter(col => col === winnerName.replace(/ /g, '_').replace(/[()]/g, '').replace(/\//g, '_').toLowerCase()).forEach(col => {
       const colData = holdout.map(h => h[col]);
       const colName = col.replace(/_/g, ' ').toUpperCase();
       datasets.push({
         label: colName,
         data: colData,
-        borderColor: colors[idx % colors.length],
+        borderColor: '#0d9488',
         borderWidth: 1.5,
         borderDash: [4, 4],
         pointRadius: 2,
@@ -801,10 +787,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="audit-marker"></div>
         <div class="audit-card">
           <div class="audit-header">
-            <span class="step-chip">${act.step_name}</span>
-            ${act.model_name ? `<span class="model-chip">${act.model_name}</span>` : ''}
+            <span class="step-chip">${safe(act.step_name)}</span>
+            ${act.model_name ? `<span class="model-chip">${safe(act.model_name)}</span>` : ''}
           </div>
-          <p class="audit-desc">${act.description}</p>
+          <p class="audit-desc">${safe(act.description)}</p>
         </div>
       `;
       container.appendChild(entry);
@@ -818,19 +804,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const badge = document.getElementById('forecast-horizon-badge');
     badge.textContent = `${points.length} Periods Projected`;
 
-    points.forEach(pt => {
+    latestForecastPoints = points;
+    points.slice(0, visibleForecastRows).forEach(pt => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td style="font-weight: 600; color: var(--color-primary);">${pt.forecast_date}</td>
         <td style="font-weight: 700; color: #0284c7;">${parseFloat(pt.forecast_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
-        <td>${pt.lower_80 !== null ? parseFloat(pt.lower_80).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '-'}</td>
-        <td>${pt.upper_80 !== null ? parseFloat(pt.upper_80).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '-'}</td>
-        <td>${pt.lower_95 !== null ? parseFloat(pt.lower_95).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '-'}</td>
-        <td>${pt.upper_95 !== null ? parseFloat(pt.upper_95).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '-'}</td>
+        <td class="bound-80">${pt.lower_80 !== null ? parseFloat(pt.lower_80).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '-'}</td>
+        <td class="bound-80">${pt.upper_80 !== null ? parseFloat(pt.upper_80).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '-'}</td>
+        <td class="bound-95">${pt.lower_95 !== null ? parseFloat(pt.lower_95).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '-'}</td>
+        <td class="bound-95">${pt.upper_95 !== null ? parseFloat(pt.upper_95).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '-'}</td>
       `;
       tbody.appendChild(tr);
     });
+    const toggle = document.getElementById('btn-toggle-forecast-rows');
+    toggle.style.display = points.length > 15 ? '' : 'none';
+    toggle.textContent = visibleForecastRows < points.length ? 'View full forecast' : 'Show first 15 rows';
+    document.querySelectorAll('.bound-80').forEach(el => el.style.display = reportConfidenceLevels.includes(0.80) ? '' : 'none');
+    document.querySelectorAll('.bound-95').forEach(el => el.style.display = reportConfidenceLevels.includes(0.95) ? '' : 'none');
   }
+  document.getElementById('btn-toggle-forecast-rows')?.addEventListener('click', () => {
+    visibleForecastRows = visibleForecastRows < latestForecastPoints.length ? latestForecastPoints.length : 15;
+    renderForecastPointsTable(latestForecastPoints);
+  });
 
   // -------------------------------------------------------------
   // 8. JOB HISTORY

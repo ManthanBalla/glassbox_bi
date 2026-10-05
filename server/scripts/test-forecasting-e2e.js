@@ -22,7 +22,7 @@ const path = require('path');
 const FormData = require('form-data');
 require('dotenv').config();
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const FORECASTING_URL = process.env.FORECASTING_AGENT_URL || 'http://127.0.0.1:8002';
 
 const ts = Date.now();
@@ -187,6 +187,7 @@ async function runTests() {
     processedDatasetId = processedRecord.id;
     assert(processedRecord.target_column === 'sales', `Processed dataset target column is '${processedRecord.target_column}'`);
     assert(processedRecord.date_column === 'date', `Processed dataset date column is '${processedRecord.date_column}'`);
+    assert(processedRecord.data_contract?.target_column === 'sales', 'Preprocessing data contract is available in dataset selection');
 
     // 6. POST /api/agents/forecasting/precheck
     const precheckRes = await axios.post(`${BASE_URL}/api/agents/forecasting/precheck`, {
@@ -202,6 +203,7 @@ async function runTests() {
     assert(precheckRes.data.eligibility['ARIMA / SARIMA'].eligible === true, 'ARIMA is eligible');
     assert(precheckRes.data.eligibility['LightGBM'].eligible === true, 'LightGBM is eligible');
     assert(precheckRes.data.eligibility['Prophet'].eligible === true, 'Prophet is eligible');
+    assert(precheckRes.data.validation.checks.regular_frequency === true, 'Pre-check exposes time-series health');
 
     // 7. Security: User B cannot precheck User A's dataset
     try {
@@ -265,6 +267,8 @@ async function runTests() {
     assert(reportRes.data.job.winner_model !== null, `Winning model chosen: ${reportRes.data.job.winner_model}`);
     assert(reportRes.data.leaderboard.length === 6, `Leaderboard contains all 6 models evaluated`);
     assert(reportRes.data.audit_actions.length >= 6, `Audit trail contains ${reportRes.data.audit_actions.length} recorded events`);
+    assert(reportRes.data.disk_report.winner_evidence.metric === 'rmse', 'Report includes evidence for the selected ranking metric');
+    assert(reportRes.data.forecast_metadata.prediction_levels.length === 2, 'Forecast metadata records selected prediction bounds');
 
     const winnerEntry = reportRes.data.leaderboard.find(r => r.rank === 1);
     assert(winnerEntry !== undefined, `Rank 1 winner model exists on leaderboard: ${winnerEntry ? winnerEntry.model_name : 'none'}`);
@@ -287,12 +291,15 @@ async function runTests() {
     });
     assert(dlRes.status === 200, 'Forecast CSV download returns HTTP 200');
     assert(typeof dlRes.data === 'string' && dlRes.data.includes('forecast') && dlRes.data.includes('lower_80') && dlRes.data.includes('upper_95'), 'Forecast CSV contains header with intervals');
+    const reportDownload = await axios.get(`${BASE_URL}/api/agents/forecasting/jobs/${forecastJobId}/report/download`, { headers: { 'Cookie': cookiesA } });
+    assert(reportDownload.status === 200, 'Forecast JSON report download returns HTTP 200');
 
     // 13. Model Artifacts & Feature Metadata Verification for XAI Agent
     const modelArtifactPath = path.join(__dirname, '..', '..', 'models', String(userAId), forecastJobId, 'model.joblib');
     const metadataPath = path.join(__dirname, '..', '..', 'models', String(userAId), forecastJobId, 'metadata.json');
     assert(fs.existsSync(modelArtifactPath), 'Trained model artifact (.joblib) saved for future XAI Agent');
     assert(fs.existsSync(metadataPath), 'Feature metadata (.json) saved for future XAI Agent');
+    assert(fs.existsSync(path.join(__dirname, '..', '..', 'forecasts', String(userAId), forecastJobId, 'forecast_metadata.json')), 'Forecast handoff metadata saved');
 
     const metaContent = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
     assert(metaContent.model_name === reportRes.data.job.winner_model, 'Model metadata records winning model name');
