@@ -1,0 +1,62 @@
+{
+  "winning_model": "ETS (Exponential Smoothing)",
+  "ranking_metric": "rmse",
+  "selected_models": [
+    "Seasonal Naive",
+    "ETS (Exponential Smoothing)",
+    "ARIMA / SARIMA",
+    "Prophet",
+    "LightGBM",
+    "Theta"
+  ],
+  "prediction_levels": [
+    0.8,
+    0.95
+  ],
+  "requested_horizon": 6,
+  "effective_horizon": 6,
+  "holdout_percent": 0.2,
+  "evaluation_preprocessing": "Holdout evaluation uses observed targets from evaluation_source.csv. Imputation and optional capping are fitted on training dates only; missing holdout targets are excluded from scoring.",
+  "preprocessing_contract": {
+    "date_column": "date",
+    "target_column": "sales",
+    "frequency": "MS",
+    "target_type": "numeric",
+    "date_start": "2019-01-01",
+    "date_end": "2023-12-01",
+    "observations": 60,
+    "business_dimensions": [],
+    "forecast_readiness": 90,
+    "version": 1
+  },
+  "winner_evidence": {
+    "metric": "rmse",
+    "winner_score": 118.0655,
+    "runner_up": "Prophet",
+    "runner_up_score": 157.2972,
+    "runner_up_improvement_percent": 24.94,
+    "baseline_score": 956.0085,
+    "baseline_improvement_percent": 87.65
+  },
+  "model_metadata": {
+    "model_name": "ETS (Exponential Smoothing)",
+    "target_column": "sales",
+    "date_column": "date",
+    "frequency": "MS",
+    "seasonal_period": 12,
+    "features": [
+      "sales",
+      "date"
+    ],
+    "hyperparameters": {
+      "trend": "add",
+      "seasonal": "add",
+      "seasonal_period": 12,
+      "smoothing_level": 0.4100185989442494,
+      "smoothing_trend": 0.0,
+      "smoothing_seasonal": 0.0
+    },
+    "created_at": 1791306126.7328165
+  },
+  "warnings": []
+}

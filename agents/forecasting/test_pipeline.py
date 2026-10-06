@@ -231,7 +231,7 @@ class TestForecastingAgent(unittest.TestCase):
 
         self.assertIn("winner_model", report)
         self.assertIsNotNone(report["winner_model"])
-        self.assertEqual(len(report["model_leaderboard"]), 6)
+        self.assertEqual(len(report["model_leaderboard"]), 7)
 
         # Check export files exist
         self.assertTrue(os.path.exists(os.path.join(out_dir, "forecast.csv")))

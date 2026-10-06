@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'ARIMA / SARIMA': 'Autoregressive patterns',
     Prophet: 'Trend + calendar seasonality',
     LightGBM: 'Lag + calendar features',
+    LSTM: 'Sequence patterns',
     Theta: 'Trend/level forecasting'
   };
   const safe = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch]));
@@ -284,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
       eligContainer.appendChild(card);
     });
     const eligibleCount = Object.values(elig).filter(item => item.eligible).length;
-    document.getElementById('eligibility-count').textContent = `${eligibleCount} of 6 candidates available`;
+    document.getElementById('eligibility-count').textContent = `${eligibleCount} of ${Object.keys(elig).length} candidates available`;
     document.getElementById('precheck-recommendation').textContent = `${eligibleCount} candidates available · ${seasonLabel} cycle assumed from frequency · Recommended: run multi-model evaluation.`;
 
     // Prefill Step 3 Horizon
@@ -308,6 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
       { id: 'ARIMA / SARIMA', name: 'ARIMA / SARIMA', sub: 'Autoregressive patterns' },
       { id: 'Prophet', name: 'Prophet', sub: 'Trend + calendar seasonality' },
       { id: 'LightGBM', name: 'LightGBM', sub: 'Lag + calendar features' },
+      { id: 'LSTM', name: 'LSTM', sub: 'Sequence patterns' },
       { id: 'Theta', name: 'Theta', sub: 'Trend/level forecasting' }
     ];
 

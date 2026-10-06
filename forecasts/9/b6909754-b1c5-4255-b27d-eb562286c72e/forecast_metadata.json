@@ -1,0 +1,60 @@
+{
+  "winning_model": "Theta",
+  "ranking_metric": "rmse",
+  "selected_models": [
+    "Seasonal Naive",
+    "ETS (Exponential Smoothing)",
+    "ARIMA / SARIMA",
+    "Prophet",
+    "LightGBM",
+    "Theta"
+  ],
+  "prediction_levels": [
+    0.8,
+    0.95
+  ],
+  "requested_horizon": 12,
+  "effective_horizon": 12,
+  "holdout_percent": 0.2,
+  "evaluation_preprocessing": "Holdout evaluation uses observed targets from evaluation_source.csv. Imputation and optional capping are fitted on training dates only; missing holdout targets are excluded from scoring.",
+  "preprocessing_contract": {
+    "date_column": "date",
+    "target_column": "weekly_sales",
+    "frequency": "W-FRI",
+    "target_type": "numeric",
+    "date_start": "2010-02-05",
+    "date_end": "2012-10-26",
+    "observations": 143,
+    "business_dimensions": [
+      "store"
+    ],
+    "forecast_readiness": 96,
+    "version": 1
+  },
+  "winner_evidence": {
+    "metric": "rmse",
+    "winner_score": 931629.6263,
+    "runner_up": "ETS (Exponential Smoothing)",
+    "runner_up_score": 980524.9395,
+    "runner_up_improvement_percent": 4.99,
+    "baseline_score": 1160987.1159,
+    "baseline_improvement_percent": 19.76
+  },
+  "model_metadata": {
+    "model_name": "Theta",
+    "target_column": "weekly_sales",
+    "date_column": "date",
+    "frequency": "W-FRI",
+    "seasonal_period": 52,
+    "features": [
+      "weekly_sales",
+      "date"
+    ],
+    "hyperparameters": {
+      "period": 52,
+      "deseasonalize": true
+    },
+    "created_at": 1791304703.9926188
+  },
+  "warnings": []
+}

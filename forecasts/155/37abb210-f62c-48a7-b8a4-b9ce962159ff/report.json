@@ -1,0 +1,943 @@
+{
+  "job_id": "37abb210-f62c-48a7-b8a4-b9ce962159ff",
+  "user_id": "155",
+  "dataset_file": "cleaned_data.csv",
+  "date_column": "date",
+  "target_column": "sales",
+  "frequency": "MS",
+  "seasonal_period": 12,
+  "total_observations": 60,
+  "train_observations": 54,
+  "holdout_observations": 6,
+  "holdout_observed_targets": 6,
+  "horizon": 6,
+  "requested_horizon": 6,
+  "holdout_percent": 0.2,
+  "confidence_levels": [
+    0.8,
+    0.95
+  ],
+  "selected_models": [
+    "Seasonal Naive",
+    "ETS (Exponential Smoothing)",
+    "ARIMA / SARIMA",
+    "Prophet",
+    "LightGBM",
+    "Theta"
+  ],
+  "ranking_metric": "rmse",
+  "winner_model": "ETS (Exponential Smoothing)",
+  "warnings": [],
+  "validation": {
+    "status": "pass",
+    "is_valid": true,
+    "total_rows": 60,
+    "seasonal_period": 12,
+    "suggested_horizon": 12,
+    "errors": [],
+    "warnings": [],
+    "checks": {
+      "valid_dates": true,
+      "unique_dates": true,
+      "regular_frequency": true,
+      "missing_periods": 0,
+      "complete_target": true,
+      "target_variation": true,
+      "sufficient_history": true
+    },
+    "horizon_adjusted": false,
+    "requested_horizon": 6,
+    "effective_horizon": 6
+  },
+  "evaluation_preprocessing": "Holdout evaluation uses observed targets from evaluation_source.csv. Imputation and optional capping are fitted on training dates only; missing holdout targets are excluded from scoring.",
+  "preprocessing_contract": {
+    "date_column": "date",
+    "target_column": "sales",
+    "frequency": "MS",
+    "target_type": "numeric",
+    "date_start": "2019-01-01",
+    "date_end": "2023-12-01",
+    "observations": 60,
+    "business_dimensions": [],
+    "forecast_readiness": 90,
+    "version": 1
+  },
+  "model_leaderboard": [
+    {
+      "model_name": "Seasonal Naive",
+      "status": "ok",
+      "skip_reason": null,
+      "mae": 951.92,
+      "rmse": 956.0085,
+      "mape": 11.2568,
+      "smape": 11.94,
+      "mase": 1.0596,
+      "beats_baseline": false,
+      "train_seconds": 0.0,
+      "hyperparameters": {
+        "seasonal_period": 12,
+        "baseline_type": "seasonal_naive"
+      },
+      "rank": 6
+    },
+    {
+      "model_name": "ETS (Exponential Smoothing)",
+      "status": "ok",
+      "skip_reason": null,
+      "mae": 98.9991,
+      "rmse": 118.0655,
+      "mape": 1.1685,
+      "smape": 1.1612,
+      "mase": 0.1102,
+      "beats_baseline": true,
+      "train_seconds": 0.41,
+      "hyperparameters": {
+        "trend": "add",
+        "seasonal": "add",
+        "seasonal_period": 12,
+        "smoothing_level": 0.4964493414908881,
+        "smoothing_trend": 0.0,
+        "smoothing_seasonal": 0.0
+      },
+      "rank": 1
+    },
+    {
+      "model_name": "ARIMA / SARIMA",
+      "status": "ok",
+      "skip_reason": null,
+      "mae": 147.3527,
+      "rmse": 171.1312,
+      "mape": 1.7682,
+      "smape": 1.7469,
+      "mase": 0.164,
+      "beats_baseline": true,
+      "train_seconds": 5.468,
+      "hyperparameters": {
+        "order": [
+          0,
+          1,
+          0
+        ],
+        "seasonal_order": [
+          1,
+          0,
+          0,
+          12
+        ],
+        "aic": 733.53
+      },
+      "rank": 3
+    },
+    {
+      "model_name": "Prophet",
+      "status": "ok",
+      "skip_reason": null,
+      "mae": 147.3194,
+      "rmse": 157.2972,
+      "mape": 1.7531,
+      "smape": 1.7416,
+      "mase": 0.164,
+      "beats_baseline": true,
+      "train_seconds": 0.485,
+      "hyperparameters": {
+        "yearly_seasonality": true,
+        "weekly_seasonality": false,
+        "changepoint_prior_scale": 0.05
+      },
+      "rank": 2
+    },
+    {
+      "model_name": "LightGBM",
+      "status": "ok",
+      "skip_reason": null,
+      "mae": 233.2122,
+      "rmse": 246.7137,
+      "mape": 2.8094,
+      "smape": 2.7925,
+      "mase": 0.2596,
+      "beats_baseline": true,
+      "train_seconds": 0.038,
+      "hyperparameters": {
+        "n_estimators": 100,
+        "learning_rate": 0.05,
+        "num_leaves": 15,
+        "features_engineered": [
+          "lag_1",
+          "lag_2",
+          "lag_3",
+          "lag_m",
+          "roll_mean_3",
+          "roll_std_3",
+          "time_index",
+          "month",
+          "quarter",
+          "dayofweek",
+          "is_month_end"
+        ]
+      },
+      "rank": 4
+    },
+    {
+      "model_name": "LSTM",
+      "status": "skipped",
+      "skip_reason": "Skipped: not selected for this forecasting run.",
+      "mae": null,
+      "rmse": null,
+      "mape": null,
+      "smape": null,
+      "mase": null,
+      "beats_baseline": false,
+      "train_seconds": 0.0,
+      "hyperparameters": {},
+      "rank": 7
+    },
+    {
+      "model_name": "Theta",
+      "status": "ok",
+      "skip_reason": null,
+      "mae": 524.3896,
+      "rmse": 605.1729,
+      "mape": 6.3715,
+      "smape": 6.6583,
+      "mase": 0.5837,
+      "beats_baseline": true,
+      "train_seconds": 0.02,
+      "hyperparameters": {
+        "period": 12,
+        "deseasonalize": true
+      },
+      "rank": 5
+    }
+  ],
+  "winner_evidence": {
+    "metric": "rmse",
+    "winner_score": 118.0655,
+    "runner_up": "Prophet",
+    "runner_up_score": 157.2972,
+    "runner_up_improvement_percent": 24.94,
+    "baseline_score": 956.0085,
+    "baseline_improvement_percent": 87.65
+  },
+  "baseline_comparison": {
+    "model": "Seasonal Naive",
+    "score": 956.0085,
+    "improvement_percent": 87.65
+  },
+  "eligibility_decisions": {
+    "Seasonal Naive": {
+      "eligible": true,
+      "status": "ok",
+      "reason": "Baseline model repeats the previous seasonal cycle (period m=12). Always eligible."
+    },
+    "ETS (Exponential Smoothing)": {
+      "eligible": true,
+      "status": "ok",
+      "reason": "Eligible: 60 rows provide at least 2 full seasonal cycles (24 needed) for additive trend and seasonal components."
+    },
+    "ARIMA / SARIMA": {
+      "eligible": true,
+      "status": "ok",
+      "reason": "Eligible: 60 observations sufficient for seasonal SARIMA order search."
+    },
+    "Prophet": {
+      "eligible": true,
+      "status": "ok",
+      "reason": "Eligible: 60 observations sufficient to model Bayesian trend and seasonal components."
+    },
+    "LightGBM": {
+      "eligible": true,
+      "status": "ok",
+      "reason": "Eligible: 60 observations sufficient for recursive gradient boosting with engineered lag and rolling features."
+    },
+    "LSTM": {
+      "eligible": false,
+      "status": "skipped",
+      "reason": "Skipped: not selected for this forecasting run."
+    },
+    "Theta": {
+      "eligible": true,
+      "status": "ok",
+      "reason": "Eligible: decomposing series into dual curvature and trend lines with period m=12."
+    }
+  },
+  "features_engineered": [
+    "lag_1 (y_{t-1})",
+    "lag_2 (y_{t-2})",
+    "lag_3 (y_{t-3})",
+    "lag_m (y_{t-12})",
+    "roll_mean_3 (backward 3-period rolling average on y_{t-1})",
+    "roll_std_3 (backward 3-period rolling std on y_{t-1})",
+    "calendar_month (1-12)",
+    "calendar_quarter (1-4)",
+    "calendar_dayofweek (0-6)",
+    "is_month_end (binary indicator)",
+    "time_index (monotonically increasing integer)"
+  ],
+  "split_info": {
+    "train_start": "2019-01-01",
+    "train_end": "2023-06-01",
+    "holdout_start": "2023-07-01",
+    "holdout_end": "2023-12-01"
+  },
+  "audit_actions": [
+    {
+      "step_order": 1,
+      "step_name": "LOAD",
+      "model_name": null,
+      "action": "dataset_loaded",
+      "description": "Loaded cleaned time-series dataset with 60 observations from 2019-01-01 to 2023-12-01 at frequency 'MS'.",
+      "timestamp": 1791306120.0806172
+    },
+    {
+      "step_order": 2,
+      "step_name": "TIME_SERIES_VALIDATION",
+      "model_name": null,
+      "action": "validation_passed",
+      "description": "Time-series validation completed for 60 chronological observations.",
+      "timestamp": 1791306120.084782
+    },
+    {
+      "step_order": 3,
+      "step_name": "MODEL_ELIGIBILITY",
+      "model_name": "Seasonal Naive",
+      "action": "model_eligible",
+      "description": "Baseline model repeats the previous seasonal cycle (period m=12). Always eligible.",
+      "timestamp": 1791306120.0862796
+    },
+    {
+      "step_order": 4,
+      "step_name": "MODEL_ELIGIBILITY",
+      "model_name": "ETS (Exponential Smoothing)",
+      "action": "model_eligible",
+      "description": "Eligible: 60 rows provide at least 2 full seasonal cycles (24 needed) for additive trend and seasonal components.",
+      "timestamp": 1791306120.0864625
+    },
+    {
+      "step_order": 5,
+      "step_name": "MODEL_ELIGIBILITY",
+      "model_name": "ARIMA / SARIMA",
+      "action": "model_eligible",
+      "description": "Eligible: 60 observations sufficient for seasonal SARIMA order search.",
+      "timestamp": 1791306120.0865617
+    },
+    {
+      "step_order": 6,
+      "step_name": "MODEL_ELIGIBILITY",
+      "model_name": "Prophet",
+      "action": "model_eligible",
+      "description": "Eligible: 60 observations sufficient to model Bayesian trend and seasonal components.",
+      "timestamp": 1791306120.086641
+    },
+    {
+      "step_order": 7,
+      "step_name": "MODEL_ELIGIBILITY",
+      "model_name": "LightGBM",
+      "action": "model_eligible",
+      "description": "Eligible: 60 observations sufficient for recursive gradient boosting with engineered lag and rolling features.",
+      "timestamp": 1791306120.0867145
+    },
+    {
+      "step_order": 8,
+      "step_name": "MODEL_ELIGIBILITY",
+      "model_name": "LSTM",
+      "action": "model_skipped",
+      "description": "Skipped: not selected for this forecasting run.",
+      "timestamp": 1791306120.0867836
+    },
+    {
+      "step_order": 9,
+      "step_name": "MODEL_ELIGIBILITY",
+      "model_name": "Theta",
+      "action": "model_eligible",
+      "description": "Eligible: decomposing series into dual curvature and trend lines with period m=12.",
+      "timestamp": 1791306120.0868492
+    },
+    {
+      "step_order": 10,
+      "step_name": "FEATURE_ENGINEERING",
+      "model_name": "LightGBM",
+      "action": "features_described",
+      "description": "LightGBM will use backward-looking lag, rolling, and calendar features.",
+      "timestamp": 1791306120.0869255
+    },
+    {
+      "step_order": 11,
+      "step_name": "EVALUATION_PREPROCESSING",
+      "model_name": null,
+      "action": "train_only",
+      "description": "Holdout evaluation uses observed targets from evaluation_source.csv. Imputation and optional capping are fitted on training dates only; missing holdout targets are excluded from scoring.",
+      "timestamp": 1791306120.104065
+    },
+    {
+      "step_order": 12,
+      "step_name": "CHRONOLOGICAL_SPLIT",
+      "model_name": null,
+      "action": "dataset_split",
+      "description": "Chronological holdout split: 54 training periods (2019-01-01 to 2023-06-01) and 6 holdout evaluation periods (2023-07-01 to 2023-12-01). No data shuffled.",
+      "timestamp": 1791306120.1050532
+    },
+    {
+      "step_order": 13,
+      "step_name": "TRAIN_AND_EVALUATE",
+      "model_name": "Seasonal Naive",
+      "action": "model_evaluated",
+      "description": "Seasonal Naive trained in 0.0s. Holdout RMSE: 956.0085, MAE: 951.92, sMAPE: 11.94%, MASE 1.0596 (does not beat baseline).",
+      "timestamp": 1791306120.1091125
+    },
+    {
+      "step_order": 14,
+      "step_name": "TRAIN_AND_EVALUATE",
+      "model_name": "ETS (Exponential Smoothing)",
+      "action": "model_evaluated",
+      "description": "ETS (Exponential Smoothing) trained in 0.41s. Holdout RMSE: 118.0655, MAE: 98.9991, sMAPE: 1.1612%, MASE 0.1102 (beats baseline).",
+      "timestamp": 1791306120.5201497
+    },
+    {
+      "step_order": 15,
+      "step_name": "TRAIN_AND_EVALUATE",
+      "model_name": "ARIMA / SARIMA",
+      "action": "model_evaluated",
+      "description": "ARIMA / SARIMA trained in 5.47s. Holdout RMSE: 171.1312, MAE: 147.3527, sMAPE: 1.7469%, MASE 0.164 (beats baseline).",
+      "timestamp": 1791306125.9888954
+    },
+    {
+      "step_order": 16,
+      "step_name": "TRAIN_AND_EVALUATE",
+      "model_name": "Prophet",
+      "action": "model_evaluated",
+      "description": "Prophet trained in 0.48s. Holdout RMSE: 157.2972, MAE: 147.3194, sMAPE: 1.7416%, MASE 0.164 (beats baseline).",
+      "timestamp": 1791306126.4741337
+    },
+    {
+      "step_order": 17,
+      "step_name": "TRAIN_AND_EVALUATE",
+      "model_name": "LightGBM",
+      "action": "model_evaluated",
+      "description": "LightGBM trained in 0.04s. Holdout RMSE: 246.7137, MAE: 233.2122, sMAPE: 2.7925%, MASE 0.2596 (beats baseline).",
+      "timestamp": 1791306126.5121994
+    },
+    {
+      "step_order": 18,
+      "step_name": "TRAIN_AND_EVALUATE",
+      "model_name": "Theta",
+      "action": "model_evaluated",
+      "description": "Theta trained in 0.02s. Holdout RMSE: 605.1729, MAE: 524.3896, sMAPE: 6.6583%, MASE 0.5837 (beats baseline).",
+      "timestamp": 1791306126.532918
+    },
+    {
+      "step_order": 19,
+      "step_name": "MODEL_SELECTION",
+      "model_name": "ETS (Exponential Smoothing)",
+      "action": "winner_selected",
+      "description": "ETS (Exponential Smoothing) achieved the best holdout performance with RMSE 118.0655 (MASE: 0.1102), ranking 1st of 6 successfully evaluated models.",
+      "timestamp": 1791306126.5352135
+    },
+    {
+      "step_order": 20,
+      "step_name": "REFIT_AND_FORECAST",
+      "model_name": "ETS (Exponential Smoothing)",
+      "action": "forecast_generated",
+      "description": "Refit ETS (Exponential Smoothing) on all 60 observations in 0.18s. Generated 6-step future forecast with 80%, 95% prediction intervals.",
+      "timestamp": 1791306126.7211604
+    },
+    {
+      "step_order": 21,
+      "step_name": "EXPORT",
+      "model_name": null,
+      "action": "artifacts_saved",
+      "description": "Exported forecast.csv (6 periods), holdout_predictions.csv, report.json, forecast_metadata.json, and winning model artifacts.",
+      "timestamp": 1791306126.7348874
+    }
+  ],
+  "forecast_configuration": {
+    "winning_model": "ETS (Exponential Smoothing)",
+    "ranking_metric": "rmse",
+    "selected_models": [
+      "Seasonal Naive",
+      "ETS (Exponential Smoothing)",
+      "ARIMA / SARIMA",
+      "Prophet",
+      "LightGBM",
+      "Theta"
+    ],
+    "prediction_levels": [
+      0.8,
+      0.95
+    ],
+    "requested_horizon": 6,
+    "effective_horizon": 6,
+    "holdout_percent": 0.2,
+    "evaluation_preprocessing": "Holdout evaluation uses observed targets from evaluation_source.csv. Imputation and optional capping are fitted on training dates only; missing holdout targets are excluded from scoring.",
+    "preprocessing_contract": {
+      "date_column": "date",
+      "target_column": "sales",
+      "frequency": "MS",
+      "target_type": "numeric",
+      "date_start": "2019-01-01",
+      "date_end": "2023-12-01",
+      "observations": 60,
+      "business_dimensions": [],
+      "forecast_readiness": 90,
+      "version": 1
+    },
+    "winner_evidence": {
+      "metric": "rmse",
+      "winner_score": 118.0655,
+      "runner_up": "Prophet",
+      "runner_up_score": 157.2972,
+      "runner_up_improvement_percent": 24.94,
+      "baseline_score": 956.0085,
+      "baseline_improvement_percent": 87.65
+    },
+    "model_metadata": {
+      "model_name": "ETS (Exponential Smoothing)",
+      "target_column": "sales",
+      "date_column": "date",
+      "frequency": "MS",
+      "seasonal_period": 12,
+      "features": [
+        "sales",
+        "date"
+      ],
+      "hyperparameters": {
+        "trend": "add",
+        "seasonal": "add",
+        "seasonal_period": 12,
+        "smoothing_level": 0.4100185989442494,
+        "smoothing_trend": 0.0,
+        "smoothing_seasonal": 0.0
+      },
+      "created_at": 1791306126.7328165
+    },
+    "warnings": []
+  },
+  "handoff": {
+    "winning_model": "ETS (Exponential Smoothing)",
+    "ranking_metric": "rmse",
+    "leaderboard": [
+      {
+        "model_name": "Seasonal Naive",
+        "status": "ok",
+        "skip_reason": null,
+        "mae": 951.92,
+        "rmse": 956.0085,
+        "mape": 11.2568,
+        "smape": 11.94,
+        "mase": 1.0596,
+        "beats_baseline": false,
+        "train_seconds": 0.0,
+        "hyperparameters": {
+          "seasonal_period": 12,
+          "baseline_type": "seasonal_naive"
+        },
+        "rank": 6
+      },
+      {
+        "model_name": "ETS (Exponential Smoothing)",
+        "status": "ok",
+        "skip_reason": null,
+        "mae": 98.9991,
+        "rmse": 118.0655,
+        "mape": 1.1685,
+        "smape": 1.1612,
+        "mase": 0.1102,
+        "beats_baseline": true,
+        "train_seconds": 0.41,
+        "hyperparameters": {
+          "trend": "add",
+          "seasonal": "add",
+          "seasonal_period": 12,
+          "smoothing_level": 0.4964493414908881,
+          "smoothing_trend": 0.0,
+          "smoothing_seasonal": 0.0
+        },
+        "rank": 1
+      },
+      {
+        "model_name": "ARIMA / SARIMA",
+        "status": "ok",
+        "skip_reason": null,
+        "mae": 147.3527,
+        "rmse": 171.1312,
+        "mape": 1.7682,
+        "smape": 1.7469,
+        "mase": 0.164,
+        "beats_baseline": true,
+        "train_seconds": 5.468,
+        "hyperparameters": {
+          "order": [
+            0,
+            1,
+            0
+          ],
+          "seasonal_order": [
+            1,
+            0,
+            0,
+            12
+          ],
+          "aic": 733.53
+        },
+        "rank": 3
+      },
+      {
+        "model_name": "Prophet",
+        "status": "ok",
+        "skip_reason": null,
+        "mae": 147.3194,
+        "rmse": 157.2972,
+        "mape": 1.7531,
+        "smape": 1.7416,
+        "mase": 0.164,
+        "beats_baseline": true,
+        "train_seconds": 0.485,
+        "hyperparameters": {
+          "yearly_seasonality": true,
+          "weekly_seasonality": false,
+          "changepoint_prior_scale": 0.05
+        },
+        "rank": 2
+      },
+      {
+        "model_name": "LightGBM",
+        "status": "ok",
+        "skip_reason": null,
+        "mae": 233.2122,
+        "rmse": 246.7137,
+        "mape": 2.8094,
+        "smape": 2.7925,
+        "mase": 0.2596,
+        "beats_baseline": true,
+        "train_seconds": 0.038,
+        "hyperparameters": {
+          "n_estimators": 100,
+          "learning_rate": 0.05,
+          "num_leaves": 15,
+          "features_engineered": [
+            "lag_1",
+            "lag_2",
+            "lag_3",
+            "lag_m",
+            "roll_mean_3",
+            "roll_std_3",
+            "time_index",
+            "month",
+            "quarter",
+            "dayofweek",
+            "is_month_end"
+          ]
+        },
+        "rank": 4
+      },
+      {
+        "model_name": "LSTM",
+        "status": "skipped",
+        "skip_reason": "Skipped: not selected for this forecasting run.",
+        "mae": null,
+        "rmse": null,
+        "mape": null,
+        "smape": null,
+        "mase": null,
+        "beats_baseline": false,
+        "train_seconds": 0.0,
+        "hyperparameters": {},
+        "rank": 7
+      },
+      {
+        "model_name": "Theta",
+        "status": "ok",
+        "skip_reason": null,
+        "mae": 524.3896,
+        "rmse": 605.1729,
+        "mape": 6.3715,
+        "smape": 6.6583,
+        "mase": 0.5837,
+        "beats_baseline": true,
+        "train_seconds": 0.02,
+        "hyperparameters": {
+          "period": 12,
+          "deseasonalize": true
+        },
+        "rank": 5
+      }
+    ],
+    "holdout_predictions": "holdout_predictions.csv",
+    "future_forecast": "forecast.csv",
+    "prediction_intervals": [
+      0.8,
+      0.95
+    ],
+    "model_metadata": {
+      "model_name": "ETS (Exponential Smoothing)",
+      "target_column": "sales",
+      "date_column": "date",
+      "frequency": "MS",
+      "seasonal_period": 12,
+      "features": [
+        "sales",
+        "date"
+      ],
+      "hyperparameters": {
+        "trend": "add",
+        "seasonal": "add",
+        "seasonal_period": 12,
+        "smoothing_level": 0.4100185989442494,
+        "smoothing_trend": 0.0,
+        "smoothing_seasonal": 0.0
+      },
+      "created_at": 1791306126.7328165
+    },
+    "decision_log": [
+      {
+        "step_order": 1,
+        "step_name": "LOAD",
+        "model_name": null,
+        "action": "dataset_loaded",
+        "description": "Loaded cleaned time-series dataset with 60 observations from 2019-01-01 to 2023-12-01 at frequency 'MS'.",
+        "timestamp": 1791306120.0806172
+      },
+      {
+        "step_order": 2,
+        "step_name": "TIME_SERIES_VALIDATION",
+        "model_name": null,
+        "action": "validation_passed",
+        "description": "Time-series validation completed for 60 chronological observations.",
+        "timestamp": 1791306120.084782
+      },
+      {
+        "step_order": 3,
+        "step_name": "MODEL_ELIGIBILITY",
+        "model_name": "Seasonal Naive",
+        "action": "model_eligible",
+        "description": "Baseline model repeats the previous seasonal cycle (period m=12). Always eligible.",
+        "timestamp": 1791306120.0862796
+      },
+      {
+        "step_order": 4,
+        "step_name": "MODEL_ELIGIBILITY",
+        "model_name": "ETS (Exponential Smoothing)",
+        "action": "model_eligible",
+        "description": "Eligible: 60 rows provide at least 2 full seasonal cycles (24 needed) for additive trend and seasonal components.",
+        "timestamp": 1791306120.0864625
+      },
+      {
+        "step_order": 5,
+        "step_name": "MODEL_ELIGIBILITY",
+        "model_name": "ARIMA / SARIMA",
+        "action": "model_eligible",
+        "description": "Eligible: 60 observations sufficient for seasonal SARIMA order search.",
+        "timestamp": 1791306120.0865617
+      },
+      {
+        "step_order": 6,
+        "step_name": "MODEL_ELIGIBILITY",
+        "model_name": "Prophet",
+        "action": "model_eligible",
+        "description": "Eligible: 60 observations sufficient to model Bayesian trend and seasonal components.",
+        "timestamp": 1791306120.086641
+      },
+      {
+        "step_order": 7,
+        "step_name": "MODEL_ELIGIBILITY",
+        "model_name": "LightGBM",
+        "action": "model_eligible",
+        "description": "Eligible: 60 observations sufficient for recursive gradient boosting with engineered lag and rolling features.",
+        "timestamp": 1791306120.0867145
+      },
+      {
+        "step_order": 8,
+        "step_name": "MODEL_ELIGIBILITY",
+        "model_name": "LSTM",
+        "action": "model_skipped",
+        "description": "Skipped: not selected for this forecasting run.",
+        "timestamp": 1791306120.0867836
+      },
+      {
+        "step_order": 9,
+        "step_name": "MODEL_ELIGIBILITY",
+        "model_name": "Theta",
+        "action": "model_eligible",
+        "description": "Eligible: decomposing series into dual curvature and trend lines with period m=12.",
+        "timestamp": 1791306120.0868492
+      },
+      {
+        "step_order": 10,
+        "step_name": "FEATURE_ENGINEERING",
+        "model_name": "LightGBM",
+        "action": "features_described",
+        "description": "LightGBM will use backward-looking lag, rolling, and calendar features.",
+        "timestamp": 1791306120.0869255
+      },
+      {
+        "step_order": 11,
+        "step_name": "EVALUATION_PREPROCESSING",
+        "model_name": null,
+        "action": "train_only",
+        "description": "Holdout evaluation uses observed targets from evaluation_source.csv. Imputation and optional capping are fitted on training dates only; missing holdout targets are excluded from scoring.",
+        "timestamp": 1791306120.104065
+      },
+      {
+        "step_order": 12,
+        "step_name": "CHRONOLOGICAL_SPLIT",
+        "model_name": null,
+        "action": "dataset_split",
+        "description": "Chronological holdout split: 54 training periods (2019-01-01 to 2023-06-01) and 6 holdout evaluation periods (2023-07-01 to 2023-12-01). No data shuffled.",
+        "timestamp": 1791306120.1050532
+      },
+      {
+        "step_order": 13,
+        "step_name": "TRAIN_AND_EVALUATE",
+        "model_name": "Seasonal Naive",
+        "action": "model_evaluated",
+        "description": "Seasonal Naive trained in 0.0s. Holdout RMSE: 956.0085, MAE: 951.92, sMAPE: 11.94%, MASE 1.0596 (does not beat baseline).",
+        "timestamp": 1791306120.1091125
+      },
+      {
+        "step_order": 14,
+        "step_name": "TRAIN_AND_EVALUATE",
+        "model_name": "ETS (Exponential Smoothing)",
+        "action": "model_evaluated",
+        "description": "ETS (Exponential Smoothing) trained in 0.41s. Holdout RMSE: 118.0655, MAE: 98.9991, sMAPE: 1.1612%, MASE 0.1102 (beats baseline).",
+        "timestamp": 1791306120.5201497
+      },
+      {
+        "step_order": 15,
+        "step_name": "TRAIN_AND_EVALUATE",
+        "model_name": "ARIMA / SARIMA",
+        "action": "model_evaluated",
+        "description": "ARIMA / SARIMA trained in 5.47s. Holdout RMSE: 171.1312, MAE: 147.3527, sMAPE: 1.7469%, MASE 0.164 (beats baseline).",
+        "timestamp": 1791306125.9888954
+      },
+      {
+        "step_order": 16,
+        "step_name": "TRAIN_AND_EVALUATE",
+        "model_name": "Prophet",
+        "action": "model_evaluated",
+        "description": "Prophet trained in 0.48s. Holdout RMSE: 157.2972, MAE: 147.3194, sMAPE: 1.7416%, MASE 0.164 (beats baseline).",
+        "timestamp": 1791306126.4741337
+      },
+      {
+        "step_order": 17,
+        "step_name": "TRAIN_AND_EVALUATE",
+        "model_name": "LightGBM",
+        "action": "model_evaluated",
+        "description": "LightGBM trained in 0.04s. Holdout RMSE: 246.7137, MAE: 233.2122, sMAPE: 2.7925%, MASE 0.2596 (beats baseline).",
+        "timestamp": 1791306126.5121994
+      },
+      {
+        "step_order": 18,
+        "step_name": "TRAIN_AND_EVALUATE",
+        "model_name": "Theta",
+        "action": "model_evaluated",
+        "description": "Theta trained in 0.02s. Holdout RMSE: 605.1729, MAE: 524.3896, sMAPE: 6.6583%, MASE 0.5837 (beats baseline).",
+        "timestamp": 1791306126.532918
+      },
+      {
+        "step_order": 19,
+        "step_name": "MODEL_SELECTION",
+        "model_name": "ETS (Exponential Smoothing)",
+        "action": "winner_selected",
+        "description": "ETS (Exponential Smoothing) achieved the best holdout performance with RMSE 118.0655 (MASE: 0.1102), ranking 1st of 6 successfully evaluated models.",
+        "timestamp": 1791306126.5352135
+      },
+      {
+        "step_order": 20,
+        "step_name": "REFIT_AND_FORECAST",
+        "model_name": "ETS (Exponential Smoothing)",
+        "action": "forecast_generated",
+        "description": "Refit ETS (Exponential Smoothing) on all 60 observations in 0.18s. Generated 6-step future forecast with 80%, 95% prediction intervals.",
+        "timestamp": 1791306126.7211604
+      },
+      {
+        "step_order": 21,
+        "step_name": "EXPORT",
+        "model_name": null,
+        "action": "artifacts_saved",
+        "description": "Exported forecast.csv (6 periods), holdout_predictions.csv, report.json, forecast_metadata.json, and winning model artifacts.",
+        "timestamp": 1791306126.7348874
+      }
+    ],
+    "forecast_configuration": {
+      "winning_model": "ETS (Exponential Smoothing)",
+      "ranking_metric": "rmse",
+      "selected_models": [
+        "Seasonal Naive",
+        "ETS (Exponential Smoothing)",
+        "ARIMA / SARIMA",
+        "Prophet",
+        "LightGBM",
+        "Theta"
+      ],
+      "prediction_levels": [
+        0.8,
+        0.95
+      ],
+      "requested_horizon": 6,
+      "effective_horizon": 6,
+      "holdout_percent": 0.2,
+      "evaluation_preprocessing": "Holdout evaluation uses observed targets from evaluation_source.csv. Imputation and optional capping are fitted on training dates only; missing holdout targets are excluded from scoring.",
+      "preprocessing_contract": {
+        "date_column": "date",
+        "target_column": "sales",
+        "frequency": "MS",
+        "target_type": "numeric",
+        "date_start": "2019-01-01",
+        "date_end": "2023-12-01",
+        "observations": 60,
+        "business_dimensions": [],
+        "forecast_readiness": 90,
+        "version": 1
+      },
+      "winner_evidence": {
+        "metric": "rmse",
+        "winner_score": 118.0655,
+        "runner_up": "Prophet",
+        "runner_up_score": 157.2972,
+        "runner_up_improvement_percent": 24.94,
+        "baseline_score": 956.0085,
+        "baseline_improvement_percent": 87.65
+      },
+      "model_metadata": {
+        "model_name": "ETS (Exponential Smoothing)",
+        "target_column": "sales",
+        "date_column": "date",
+        "frequency": "MS",
+        "seasonal_period": 12,
+        "features": [
+          "sales",
+          "date"
+        ],
+        "hyperparameters": {
+          "trend": "add",
+          "seasonal": "add",
+          "seasonal_period": 12,
+          "smoothing_level": 0.4100185989442494,
+          "smoothing_trend": 0.0,
+          "smoothing_seasonal": 0.0
+        },
+        "created_at": 1791306126.7328165
+      },
+      "warnings": []
+    },
+    "data_contract": {
+      "date_column": "date",
+      "target_column": "sales",
+      "frequency": "MS",
+      "target_type": "numeric",
+      "date_start": "2019-01-01",
+      "date_end": "2023-12-01",
+      "observations": 60,
+      "business_dimensions": [],
+      "forecast_readiness": 90,
+      "version": 1
+    },
+    "warnings": []
+  },
+  "output_files": {
+    "forecast_csv": "C:\\Users\\ADMIN\\Desktop\\Major Project\\Glassbox-bi\\forecasts\\155\\37abb210-f62c-48a7-b8a4-b9ce962159ff\\forecast.csv",
+    "holdout_csv": "C:\\Users\\ADMIN\\Desktop\\Major Project\\Glassbox-bi\\forecasts\\155\\37abb210-f62c-48a7-b8a4-b9ce962159ff\\holdout_predictions.csv",
+    "model_artifact": "C:\\Users\\ADMIN\\Desktop\\Major Project\\Glassbox-bi\\models\\155\\37abb210-f62c-48a7-b8a4-b9ce962159ff\\model.joblib",
+    "feature_metadata": "C:\\Users\\ADMIN\\Desktop\\Major Project\\Glassbox-bi\\models\\155\\37abb210-f62c-48a7-b8a4-b9ce962159ff\\metadata.json",
+    "forecast_metadata": "C:\\Users\\ADMIN\\Desktop\\Major Project\\Glassbox-bi\\forecasts\\155\\37abb210-f62c-48a7-b8a4-b9ce962159ff\\forecast_metadata.json"
+  }
+}

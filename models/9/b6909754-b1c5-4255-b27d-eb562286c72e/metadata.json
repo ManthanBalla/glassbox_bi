@@ -1,0 +1,16 @@
+{
+  "model_name": "Theta",
+  "target_column": "weekly_sales",
+  "date_column": "date",
+  "frequency": "W-FRI",
+  "seasonal_period": 52,
+  "features": [
+    "weekly_sales",
+    "date"
+  ],
+  "hyperparameters": {
+    "period": 52,
+    "deseasonalize": true
+  },
+  "created_at": 1791304703.9926188
+}

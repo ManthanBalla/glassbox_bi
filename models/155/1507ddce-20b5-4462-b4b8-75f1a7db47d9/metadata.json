@@ -1,0 +1,16 @@
+{
+  "model_name": "Seasonal Naive",
+  "target_column": "sales",
+  "date_column": "date",
+  "frequency": "MS",
+  "seasonal_period": 12,
+  "features": [
+    "sales",
+    "date"
+  ],
+  "hyperparameters": {
+    "seasonal_period": 12,
+    "baseline_type": "seasonal_naive"
+  },
+  "created_at": 1791306127.869471
+}

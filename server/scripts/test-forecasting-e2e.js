@@ -79,7 +79,7 @@ async function runTests() {
     assert(expHealth.data.db.isPostgres === true, 'PostgreSQL is the active database');
 
     const fcHealth = await axios.get(`${FORECASTING_URL}/health`);
-    assert(fcHealth.data.status === 'healthy', 'Forecasting Python service is healthy on port 8002');
+    assert(fcHealth.data.status === 'healthy', 'Forecasting Python service is healthy');
 
     // 2. Setup User A (Register & Login with CSRF)
     const csrfResA = await axios.get(`${BASE_URL}/api/csrf-token`);
@@ -265,7 +265,8 @@ async function runTests() {
     });
     assert(reportRes.data.success === true, 'Forecast report retrieved successfully');
     assert(reportRes.data.job.winner_model !== null, `Winning model chosen: ${reportRes.data.job.winner_model}`);
-    assert(reportRes.data.leaderboard.length === 6, `Leaderboard contains all 6 models evaluated`);
+    assert(reportRes.data.leaderboard.length === 7, 'Leaderboard contains all 7 candidates');
+    assert(reportRes.data.leaderboard.find(row => row.model_name === 'LSTM')?.status === 'skipped', 'Unselected LSTM is skipped in the existing six-model configuration');
     assert(reportRes.data.audit_actions.length >= 6, `Audit trail contains ${reportRes.data.audit_actions.length} recorded events`);
     assert(reportRes.data.disk_report.winner_evidence.metric === 'rmse', 'Report includes evidence for the selected ranking metric');
     assert(reportRes.data.forecast_metadata.prediction_levels.length === 2, 'Forecast metadata records selected prediction bounds');
@@ -319,6 +320,37 @@ async function runTests() {
       assert(false, 'User B should NOT be able to access User A job report');
     } catch (err) {
       assert(err.response.status === 404, 'User B rejected with 404 trying to access User A forecast report');
+    }
+
+    // 16. The same authenticated route must accept and execute a selected LSTM.
+    const uiCode = await axios.get(`${BASE_URL}/js/forecasting.js`);
+    assert(uiCode.data.includes("name: 'LSTM'"), 'Forecasting UI serves the LSTM selection checkbox');
+    const lstmRun = await axios.post(`${BASE_URL}/api/agents/forecasting/run`, {
+      processedDatasetId,
+      config: { horizon: 6, metric: 'rmse', holdoutPercent: 0.20,
+        confidenceLevels: [0.80, 0.95], models: ['LSTM'] }
+    }, { headers: { 'X-CSRF-Token': csrfTokenA, 'Cookie': cookiesA } });
+    assert(lstmRun.status === 202, 'Backend accepts selected LSTM');
+    let lstmCompleted = false;
+    for (let i = 0; i < 60; i++) {
+      await sleep(1000);
+      const poll = await axios.get(`${BASE_URL}/api/agents/forecasting/jobs/${lstmRun.data.jobId}`,
+        { headers: { 'Cookie': cookiesA } });
+      if (poll.data.job?.status === 'completed') { lstmCompleted = true; break; }
+      if (poll.data.job?.status === 'failed') { console.error(poll.data.job.error_message); break; }
+    }
+    assert(lstmCompleted, 'Selected LSTM forecasting job completes');
+    if (lstmCompleted) {
+      const lstmReport = await axios.get(`${BASE_URL}/api/agents/forecasting/jobs/${lstmRun.data.jobId}/report`,
+        { headers: { 'Cookie': cookiesA } });
+      const lstmRow = lstmReport.data.leaderboard.find(row => row.model_name === 'LSTM');
+      assert(lstmRow?.status === 'ok', 'Selected LSTM trains and appears on the leaderboard');
+      assert(['mae', 'rmse', 'smape', 'mape', 'mase'].every(metric =>
+        lstmRow?.[metric] !== null && Number.isFinite(Number(lstmRow?.[metric]))),
+        'Selected LSTM receives the existing holdout metrics');
+      const lstmForecast = await axios.get(`${BASE_URL}/api/agents/forecasting/jobs/${lstmRun.data.jobId}/forecast`,
+        { headers: { 'Cookie': cookiesA } });
+      assert(lstmForecast.data.forecast.length === 6, 'LSTM selection preserves future forecast export');
     }
 
   } catch (err) {

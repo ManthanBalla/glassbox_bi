@@ -1,0 +1,20 @@
+{
+  "model_name": "ETS (Exponential Smoothing)",
+  "target_column": "sales",
+  "date_column": "date",
+  "frequency": "MS",
+  "seasonal_period": 12,
+  "features": [
+    "sales",
+    "date"
+  ],
+  "hyperparameters": {
+    "trend": "add",
+    "seasonal": "add",
+    "seasonal_period": 12,
+    "smoothing_level": 0.4100185989442494,
+    "smoothing_trend": 0.0,
+    "smoothing_seasonal": 0.0
+  },
+  "created_at": 1791306057.0086393
+}

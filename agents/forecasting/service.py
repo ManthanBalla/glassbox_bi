@@ -75,7 +75,7 @@ def precheck_time_series(req: PrecheckRequest):
     Executes Steps 1-3 only:
     1. LOAD cleaned dataset
     2. TIME-SERIES VALIDATION (checks sorted, unique, regular, nulls, constant, min 24 rows)
-    3. MODEL ELIGIBILITY CHECK (reasons for each of 6 models)
+    3. MODEL ELIGIBILITY CHECK (reasons for each of 7 models)
     """
     if not os.path.exists(req.file_path):
         raise HTTPException(status_code=404, detail="Processed dataset file not found on disk")

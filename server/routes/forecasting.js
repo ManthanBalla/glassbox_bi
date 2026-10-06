@@ -211,6 +211,7 @@ router.post('/run', authenticateToken, runForecastLimiter, async (req, res) => {
       'ARIMA / SARIMA',
       'Prophet',
       'LightGBM',
+      'LSTM',
       'Theta'
     ];
     if (cfg.models !== undefined && !Array.isArray(cfg.models)) {

@@ -1,0 +1,56 @@
+{
+  "winning_model": "Seasonal Naive",
+  "ranking_metric": "rmse",
+  "selected_models": [
+    "Seasonal Naive",
+    "LSTM"
+  ],
+  "prediction_levels": [
+    0.8,
+    0.95
+  ],
+  "requested_horizon": 6,
+  "effective_horizon": 6,
+  "holdout_percent": 0.2,
+  "evaluation_preprocessing": "Holdout evaluation uses observed targets from evaluation_source.csv. Imputation and optional capping are fitted on training dates only; missing holdout targets are excluded from scoring.",
+  "preprocessing_contract": {
+    "date_column": "date",
+    "target_column": "sales",
+    "frequency": "MS",
+    "target_type": "numeric",
+    "date_start": "2019-01-01",
+    "date_end": "2023-12-01",
+    "observations": 60,
+    "business_dimensions": [],
+    "forecast_readiness": 90,
+    "version": 1
+  },
+  "winner_evidence": {
+    "metric": "rmse",
+    "winner_score": 956.0085,
+    "runner_up": "LSTM",
+    "runner_up_score": 1064.405,
+    "runner_up_improvement_percent": 10.18,
+    "baseline_score": 956.0085,
+    "baseline_improvement_percent": 0.0
+  },
+  "model_metadata": {
+    "model_name": "Seasonal Naive",
+    "target_column": "sales",
+    "date_column": "date",
+    "frequency": "MS",
+    "seasonal_period": 12,
+    "features": [
+      "sales",
+      "date"
+    ],
+    "hyperparameters": {
+      "seasonal_period": 12,
+      "baseline_type": "seasonal_naive"
+    },
+    "created_at": 1791306127.869471
+  },
+  "warnings": [
+    "Seasonal Naive remained strongest on holdout RMSE; a more complex model was not forced to win."
+  ]
+}

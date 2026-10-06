@@ -1,6 +1,6 @@
 """
 10-Step Time-Series Forecasting Pipeline for GlassBox-BI Forecasting Agent.
-Executes the portfolio of 6 models, chronological holdout evaluation, model selection,
+Executes the portfolio of 7 models, chronological holdout evaluation, model selection,
 full refit with 80%/95% prediction intervals, explainability audit logging, and XAI artifact export.
 """
 
@@ -9,6 +9,7 @@ import json
 import logging
 import time
 import warnings
+import importlib.util
 from typing import Dict, Any, Optional, List, Tuple
 import numpy as np
 import pandas as pd
@@ -24,6 +25,7 @@ from models import (
     ARIMAWrapper,
     ProphetWrapper,
     LightGBMWrapper,
+    LSTMWrapper,
     ThetaWrapper
 )
 
@@ -69,7 +71,7 @@ class ForecastingPipeline:
         self.user_id = str(user_id)
         self.job_id = str(job_id)
         self.horizon = int(horizon)
-        default_models = ["Seasonal Naive", "ETS (Exponential Smoothing)", "ARIMA / SARIMA", "Prophet", "LightGBM", "Theta"]
+        default_models = ["Seasonal Naive", "ETS (Exponential Smoothing)", "ARIMA / SARIMA", "Prophet", "LightGBM", "LSTM", "Theta"]
         self.selected_models = list(dict.fromkeys(["Seasonal Naive"] + (default_models if selected_models is None else selected_models)))
         self.ranking_metric = ranking_metric.lower()
         self.holdout_percent = float(holdout_percent)
@@ -343,7 +345,29 @@ class ForecastingPipeline:
                 "reason": f"Eligible: {N} observations sufficient for recursive gradient boosting with engineered lag and rolling features."
             }
 
-        # 6. Theta
+        # 6. LSTM: the training slice must contain a 24-step window plus 12 targets.
+        prospective_holdout = max(3, min(self.horizon, max(3, int(np.floor(self.holdout_percent * N)))))
+        training_rows = N - prospective_holdout
+        if importlib.util.find_spec("torch") is None:
+            eligibility["LSTM"] = {
+                "eligible": False,
+                "status": "unavailable",
+                "reason": "LSTM unavailable: PyTorch is not installed in the forecasting service environment."
+            }
+        elif training_rows < 36:
+            eligibility["LSTM"] = {
+                "eligible": False,
+                "status": "skipped",
+                "reason": f"LSTM skipped: {training_rows} training observations after holdout; at least 36 needed for a 24-step window and 12 training targets."
+            }
+        else:
+            eligibility["LSTM"] = {
+                "eligible": True,
+                "status": "ok",
+                "reason": f"Eligible: {training_rows} chronological training observations support a 24-step window and at least 12 training targets."
+            }
+
+        # 7. Theta
         if "Theta" not in self.selected_models:
             eligibility["Theta"] = {
                 "eligible": False,
@@ -487,6 +511,7 @@ class ForecastingPipeline:
             ARIMAWrapper(),
             ProphetWrapper(),
             LightGBMWrapper(),
+            LSTMWrapper(),
             ThetaWrapper()
         ]
 
@@ -648,6 +673,7 @@ class ForecastingPipeline:
             "ARIMA / SARIMA": ARIMAWrapper,
             "Prophet": ProphetWrapper,
             "LightGBM": LightGBMWrapper,
+            "LSTM": LSTMWrapper,
             "Theta": ThetaWrapper
         }
 

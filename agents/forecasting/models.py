@@ -1,5 +1,5 @@
 """
-Portfolio of 6 Forecasting Models for GlassBox-BI Forecasting Agent.
+Portfolio of 7 Forecasting Models for GlassBox-BI Forecasting Agent.
 Provides a unified wrapper interface: fit, predict, predict_interval, get_metadata.
 """
 
@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, Tuple, List
 import warnings
 import logging
 import time
+import random
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -598,3 +599,127 @@ class ThetaWrapper(BaseModelWrapper):
         lower = np.asarray(intervals["lower"].values, dtype=float)
         upper = np.asarray(intervals["upper"].values, dtype=float)
         return lower, upper
+
+
+class LSTMWrapper(BaseModelWrapper):
+    """Univariate, chronological one-step LSTM with recursive multi-step inference."""
+
+    def __init__(self, lookback: int = 24, hidden_size: int = 16,
+                 epochs: int = 35, batch_size: int = 16, learning_rate: float = 0.01):
+        super().__init__("LSTM")
+        self.lookback = lookback
+        self.hidden_size = hidden_size
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.scaler_mean = 0.0
+        self.scaler_std = 1.0
+        self.last_window = np.array([], dtype=np.float32)
+        self.model = None
+
+    @staticmethod
+    def _make_sequences(values: np.ndarray, lookback: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Each target follows its input window; no future value enters an input."""
+        windows = np.stack([values[i - lookback:i] for i in range(lookback, len(values))])
+        targets = values[lookback:]
+        return windows[:, :, None].astype(np.float32), targets[:, None].astype(np.float32)
+
+    def fit(self, series: pd.Series, dates: pd.Series, freq: str, seasonal_period: int):
+        t0 = time.time()
+        import torch
+        from torch import nn
+
+        values = np.asarray(series, dtype=np.float64)
+        if not np.all(np.isfinite(values)):
+            raise ValueError("LSTM training series contains non-finite values")
+        if self.lookback < 2 or len(values) < self.lookback + 12:
+            raise ValueError(f"LSTM needs at least {self.lookback + 12} training observations")
+
+        random.seed(42)
+        np.random.seed(42)
+        torch.manual_seed(42)
+        torch.set_num_threads(1)
+
+        # fit() receives only the chronological training slice during evaluation.
+        self.scaler_mean = float(values.mean())
+        raw_std = float(values.std())
+        self.scaler_std = raw_std if raw_std > 1e-12 else 1.0
+        scaled = ((values - self.scaler_mean) / self.scaler_std).astype(np.float32)
+        x_array, y_array = self._make_sequences(scaled, self.lookback)
+        x = torch.from_numpy(x_array)
+        y = torch.from_numpy(y_array)
+
+        class Network(nn.Module):
+            def __init__(self, hidden_size: int):
+                super().__init__()
+                self.lstm = nn.LSTM(input_size=1, hidden_size=hidden_size, num_layers=1, batch_first=True)
+                self.output = nn.Linear(hidden_size, 1)
+
+            def forward(self, batch):
+                sequence, _ = self.lstm(batch)
+                return self.output(sequence[:, -1, :])
+
+        self.model = Network(self.hidden_size).cpu()
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+        loss_fn = nn.MSELoss()
+        self.model.train()
+        for _ in range(self.epochs):
+            for start in range(0, len(x), self.batch_size):
+                optimizer.zero_grad()
+                loss = loss_fn(self.model(x[start:start + self.batch_size]), y[start:start + self.batch_size])
+                if not torch.isfinite(loss):
+                    raise ValueError("LSTM training produced a non-finite loss")
+                loss.backward()
+                optimizer.step()
+
+        self.model.eval()
+        with torch.no_grad():
+            fitted = self.model(x).squeeze(1).numpy().astype(np.float64)
+        self.train_residuals = (y_array[:, 0] - fitted) * self.scaler_std
+        self.train_std = float(np.std(self.train_residuals))
+        if not np.isfinite(self.train_std) or self.train_std <= 0:
+            self.train_std = 1.0
+        self.last_window = scaled[-self.lookback:].copy()
+        self.hyperparameters = {
+            "framework": "PyTorch", "lookback": self.lookback, "hidden_size": self.hidden_size,
+            "layers": 1, "epochs": self.epochs, "batch_size": self.batch_size,
+            "optimizer": "Adam", "loss": "MSE", "learning_rate": self.learning_rate,
+            "scaling": "training_series_standardization", "device": "cpu"
+        }
+        # The existing exporter writes this object to model.joblib for the winner.
+        self.model_artifact = {
+            "framework": "PyTorch", "model_name": self.name,
+            "state_dict": {key: tensor.detach().cpu().numpy() for key, tensor in self.model.state_dict().items()},
+            "hyperparameters": self.hyperparameters.copy(),
+            "scaler_mean": self.scaler_mean, "scaler_std": self.scaler_std,
+            "last_window": self.last_window.copy()
+        }
+        self.fit_time_seconds = time.time() - t0
+        self.is_fitted = True
+
+    def predict(self, horizon: int) -> np.ndarray:
+        if not self.is_fitted or self.model is None:
+            raise RuntimeError("LSTM model is not fitted")
+        if horizon < 0:
+            raise ValueError("Forecast horizon cannot be negative")
+        import torch
+
+        window = self.last_window.copy()
+        predictions = []
+        self.model.eval()
+        with torch.no_grad():
+            for _ in range(horizon):
+                next_scaled = float(self.model(torch.from_numpy(window[None, :, None])).item())
+                next_value = next_scaled * self.scaler_std + self.scaler_mean
+                if not np.isfinite(next_value):
+                    raise ValueError("LSTM generated a non-finite forecast")
+                predictions.append(next_value)
+                window = np.concatenate((window[1:], np.array([next_scaled], dtype=np.float32)))
+        return np.asarray(predictions, dtype=float)
+
+    def predict_interval(self, horizon: int, level: float) -> Tuple[np.ndarray, np.ndarray]:
+        preds = self.predict(horizon)
+        z = float(stats.norm.ppf(0.5 + level / 2.0))
+        # Heuristic bounds from one-step in-sample residuals, widening by horizon.
+        error = z * self.train_std * np.sqrt(np.arange(1, horizon + 1))
+        return preds - error, preds + error
