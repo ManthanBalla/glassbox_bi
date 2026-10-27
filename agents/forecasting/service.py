@@ -33,6 +33,33 @@ app.add_middleware(
 )
 
 
+def sanitize_for_json(obj):
+    """
+    Recursively sanitizes Python objects into strict RFC 8259 compliant JSON values.
+    Replaces NaN, Inf, -Inf with None, converts numpy types, and extracts scalars.
+    """
+    if isinstance(obj, dict):
+        return {str(k): sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple, set)):
+        return [sanitize_for_json(v) for v in obj]
+    elif isinstance(obj, (np.floating, float)):
+        return None if (np.isnan(obj) or np.isinf(obj)) else float(obj)
+    elif isinstance(obj, (np.integer, int)):
+        return int(obj)
+    elif isinstance(obj, (np.bool_, bool)):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return sanitize_for_json(obj.tolist())
+    elif hasattr(obj, "item") and callable(getattr(obj, "item")):
+        try:
+            return sanitize_for_json(obj.item())
+        except Exception:
+            return None
+    elif pd.isna(obj):
+        return None
+    return obj
+
+
 class PrecheckRequest(BaseModel):
     file_path: str
     date_column: str
@@ -93,7 +120,7 @@ def precheck_time_series(req: PrecheckRequest):
         validation = pipeline.step2_validate()
         eligibility = pipeline.step3_check_eligibility()
 
-        return {
+        return sanitize_for_json({
             "success": True,
             "validation": validation,
             "suggested_horizon": validation.get("suggested_horizon", 12),
@@ -101,7 +128,7 @@ def precheck_time_series(req: PrecheckRequest):
             "total_rows": len(pipeline.df),
             "eligibility": eligibility,
             "actions": pipeline.actions
-        }
+        })
     except ValueError as ve:
         logger.warning(f"Precheck validation error: {ve}")
         return {
@@ -168,7 +195,7 @@ def run_forecast(req: ForecastRequest):
                     "upper_95": safe_val(row.get("upper_95"))
                 })
 
-        return {
+        return sanitize_for_json({
             "success": True,
             "job_id": req.job_id,
             "winner_model": pipeline.winner_model_name,
@@ -180,7 +207,7 @@ def run_forecast(req: ForecastRequest):
             "split_info": report.get("split_info", {}),
             "audit_actions": pipeline.actions,
             "report": report
-        }
+        })
     except Exception as e:
         logger.error(f"Forecasting pipeline error: {e}", exc_info=True)
         return {

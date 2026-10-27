@@ -197,14 +197,22 @@ class ETSWrapper(BaseModelWrapper):
         if self.train_std == 0.0:
             self.train_std = 1.0
 
-        self.model_artifact = self.model_res
+        def _clean_param(p):
+            if p is None:
+                return None
+            try:
+                val = float(p)
+                return None if (np.isnan(val) or np.isinf(val)) else round(val, 6)
+            except (TypeError, ValueError):
+                return None
+
         self.hyperparameters = {
             "trend": self.trend,
             "seasonal": self.seasonal,
             "seasonal_period": self.seasonal_period,
-            "smoothing_level": getattr(self.model_res.params, 'get', lambda k: None)('smoothing_level'),
-            "smoothing_trend": getattr(self.model_res.params, 'get', lambda k: None)('smoothing_trend'),
-            "smoothing_seasonal": getattr(self.model_res.params, 'get', lambda k: None)('smoothing_seasonal')
+            "smoothing_level": _clean_param(getattr(self.model_res.params, 'get', lambda k: None)('smoothing_level')),
+            "smoothing_trend": _clean_param(getattr(self.model_res.params, 'get', lambda k: None)('smoothing_trend')),
+            "smoothing_seasonal": _clean_param(getattr(self.model_res.params, 'get', lambda k: None)('smoothing_seasonal'))
         }
         self.fit_time_seconds = time.time() - t0
         self.is_fitted = True

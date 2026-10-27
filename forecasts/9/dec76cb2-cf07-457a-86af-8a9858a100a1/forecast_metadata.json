@@ -1,0 +1,76 @@
+{
+  "winning_model": "ARIMA / SARIMA",
+  "ranking_metric": "rmse",
+  "selected_models": [
+    "Seasonal Naive",
+    "ETS (Exponential Smoothing)",
+    "ARIMA / SARIMA",
+    "Prophet",
+    "LightGBM",
+    "LSTM",
+    "Theta"
+  ],
+  "prediction_levels": [
+    0.8,
+    0.95
+  ],
+  "requested_horizon": 30,
+  "effective_horizon": 30,
+  "holdout_percent": 0.2,
+  "evaluation_preprocessing": "Holdout evaluation uses observed targets from evaluation_source.csv. Imputation and optional capping are fitted on training dates only; missing holdout targets are excluded from scoring.",
+  "preprocessing_contract": {
+    "date_column": "transaction_date",
+    "target_column": "price_per_unit",
+    "frequency": "D",
+    "target_type": "numeric",
+    "date_start": "2022-01-01",
+    "date_end": "2025-01-18",
+    "observations": 1114,
+    "business_dimensions": [
+      "category",
+      "customer_id",
+      "payment_method",
+      "location",
+      "item",
+      "discount_applied"
+    ],
+    "forecast_readiness": 100,
+    "version": 1
+  },
+  "winner_evidence": {
+    "metric": "rmse",
+    "winner_score": 90.223,
+    "runner_up": "ETS (Exponential Smoothing)",
+    "runner_up_score": 91.1118,
+    "runner_up_improvement_percent": 0.98,
+    "baseline_score": 132.0179,
+    "baseline_improvement_percent": 31.66
+  },
+  "model_metadata": {
+    "model_name": "ARIMA / SARIMA",
+    "target_column": "price_per_unit",
+    "date_column": "transaction_date",
+    "frequency": "D",
+    "seasonal_period": 7,
+    "features": [
+      "price_per_unit",
+      "transaction_date"
+    ],
+    "hyperparameters": {
+      "order": [
+        0,
+        1,
+        1
+      ],
+      "seasonal_order": [
+        0,
+        1,
+        1,
+        7
+      ],
+      "aic": 13068.28
+    },
+    "created_at": 1791358685.7519886
+  },
+  "warnings": []
+}

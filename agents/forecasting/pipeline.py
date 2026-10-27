@@ -860,6 +860,30 @@ class ForecastingPipeline:
             }
         }
 
+        def sanitize_json_obj(obj):
+            if isinstance(obj, dict):
+                return {str(k): sanitize_json_obj(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple, set)):
+                return [sanitize_json_obj(v) for v in obj]
+            elif isinstance(obj, (np.floating, float)):
+                return None if (np.isnan(obj) or np.isinf(obj)) else float(obj)
+            elif isinstance(obj, (np.integer, int)):
+                return int(obj)
+            elif isinstance(obj, (np.bool_, bool)):
+                return bool(obj)
+            elif isinstance(obj, np.ndarray):
+                return sanitize_json_obj(obj.tolist())
+            elif hasattr(obj, "item") and callable(getattr(obj, "item")):
+                try:
+                    return sanitize_json_obj(obj.item())
+                except Exception:
+                    return None
+            elif pd.isna(obj):
+                return None
+            return obj
+
+        report_data = sanitize_json_obj(report_data)
+
         report_json_path = os.path.join(self.output_dir, "report.json")
         with open(report_json_path, "w", encoding="utf-8") as f:
             json.dump(report_data, f, indent=2)

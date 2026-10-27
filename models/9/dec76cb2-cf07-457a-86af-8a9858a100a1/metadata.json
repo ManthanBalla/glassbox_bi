@@ -1,0 +1,26 @@
+{
+  "model_name": "ARIMA / SARIMA",
+  "target_column": "price_per_unit",
+  "date_column": "transaction_date",
+  "frequency": "D",
+  "seasonal_period": 7,
+  "features": [
+    "price_per_unit",
+    "transaction_date"
+  ],
+  "hyperparameters": {
+    "order": [
+      0,
+      1,
+      1
+    ],
+    "seasonal_order": [
+      0,
+      1,
+      1,
+      7
+    ],
+    "aic": 13068.28
+  },
+  "created_at": 1791358685.7519886
+}
